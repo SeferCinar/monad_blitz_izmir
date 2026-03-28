@@ -17,8 +17,8 @@ export const monadTestnet = defineChain({
   },
   blockExplorers: {
     default: {
-      name: 'Monadscan',
-      url: 'https://testnet.monadscan.com',
+      name: 'SocialScan',
+      url: 'https://monad-testnet.socialscan.io',
     },
   },
   testnet: true,

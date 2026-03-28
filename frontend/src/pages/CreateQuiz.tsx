@@ -7,6 +7,7 @@ import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
 import { generateRandomBytes32, generateQuizKeys } from '../lib/crypto'
 import { uploadToIpfs, cidToBytes32, type IpfsQuizPayload } from '../lib/ipfs'
 import { saveQuizSession, saveLobbyName } from '../lib/session'
+import { useT } from '../i18n/LanguageContext'
 
 type QuestionInput = {
   question: string
@@ -16,6 +17,7 @@ type QuestionInput = {
 
 export default function CreateQuiz() {
   const navigate = useNavigate()
+  const { t } = useT()
   const [step, setStep] = useState<'questions' | 'config' | 'deploying'>('questions')
 
   const [lobbyName, setLobbyName] = useState('')
@@ -28,13 +30,11 @@ export default function CreateQuiz() {
   const [deployStatus, setDeployStatus] = useState('')
   const [error, setError] = useState('')
 
-  // Deploy sirasinda uretilen verileri ref'te tut
   const pendingSession = useRef<{ masterKey: string; correctAnswers: string[]; cid: string } | null>(null)
 
   const { writeContract, data: txHash, isPending } = useWriteContract()
   const { isLoading: isConfirming, data: receipt } = useWaitForTransactionReceipt({ hash: txHash })
 
-  // Tx onaylandiktan sonra localStorage'a kaydet ve navigate et
   useEffect(() => {
     if (!receipt?.logs?.[0]?.topics?.[1]) return
     if (!pendingSession.current) return
@@ -68,13 +68,13 @@ export default function CreateQuiz() {
   }
 
   const validateQuestions = (): string | null => {
-    if (!lobbyName.trim()) return 'Quiz icin bir isim gir.'
+    if (!lobbyName.trim()) return t('createQuiz.nameRequired')
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]
-      if (!q.question.trim()) return `Soru ${i + 1}: Soru metni bos.`
-      if (q.options.some((o) => !o.trim())) return `Soru ${i + 1}: Tum secenekleri doldur.`
-      if (!q.correctAnswer.trim()) return `Soru ${i + 1}: Dogru cevap secilmedi.`
-      if (!q.options.includes(q.correctAnswer)) return `Soru ${i + 1}: Dogru cevap secenekler arasinda degil.`
+      if (!q.question.trim()) return t('createQuiz.questionEmpty', { n: i + 1 })
+      if (q.options.some((o) => !o.trim())) return t('createQuiz.optionsEmpty', { n: i + 1 })
+      if (!q.correctAnswer.trim()) return t('createQuiz.noCorrectAnswer', { n: i + 1 })
+      if (!q.options.includes(q.correctAnswer)) return t('createQuiz.correctNotInOptions', { n: i + 1 })
     }
     return null
   }
@@ -93,18 +93,13 @@ export default function CreateQuiz() {
     try {
       setStep('deploying')
 
-      // 1. MasterKey otomatik uret — kullaniciya gosterme
       const masterKey = generateRandomBytes32()
-      setDeployStatus('Anahtarlar turetiliyor...')
+      setDeployStatus(t('createQuiz.generatingKeys'))
 
-      // 2. HKDF ile soru anahtarlarini turet
       const keys = await generateQuizKeys(masterKey, questions.length)
-
-      // 3. Key commits
       const keyCommits = keys.map((k) => keccak256(encodePacked(['bytes32'], [k.hex])))
 
-      // 4. Sorulari plaintext IPFS'e yukle (sifreleme yok — hackathon demo icin)
-      setDeployStatus("IPFS'e yukleniyor...")
+      setDeployStatus(t('createQuiz.uploadingIpfs'))
       const ipfsPayload: IpfsQuizPayload = {
         quizId: masterKey.slice(0, 18),
         name: lobbyName.trim(),
@@ -117,15 +112,13 @@ export default function CreateQuiz() {
       const cid = await uploadToIpfs(ipfsPayload)
       const cidBytes32 = cidToBytes32(cid)
 
-      // 6. Session verisini ref'e kaydet (useEffect tx onayini bekleyecek)
       pendingSession.current = {
         masterKey,
         correctAnswers: questions.map((q) => q.correctAnswer),
         cid,
       }
 
-      // 7. Deploy
-      setDeployStatus('Kontrat deploy ediliyor...')
+      setDeployStatus(t('createQuiz.deploying'))
       writeContract({
         address: LOBBY_FACTORY_ADDRESS,
         abi: LobbyFactoryABI,
@@ -150,7 +143,7 @@ export default function CreateQuiz() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold text-white">Quiz Olustur</h1>
+      <h1 className="mb-6 text-2xl font-bold text-white">{t('createQuiz.title')}</h1>
 
       {/* Step indicator */}
       <div className="mb-6 flex gap-2">
@@ -159,7 +152,7 @@ export default function CreateQuiz() {
             <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
               step === s ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-500'
             }`}>{i + 1}</span>
-            <span>{s === 'questions' ? 'Sorular' : s === 'config' ? 'Ayarlar' : 'Deploy'}</span>
+            <span>{s === 'questions' ? t('createQuiz.stepQuestions') : s === 'config' ? t('createQuiz.stepConfig') : t('createQuiz.stepDeploy')}</span>
           </div>
         ))}
       </div>
@@ -174,11 +167,11 @@ export default function CreateQuiz() {
       {step === 'questions' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-            <label className="mb-1 block text-sm text-gray-400">Quiz Ismi</label>
+            <label className="mb-1 block text-sm text-gray-400">{t('createQuiz.quizName')}</label>
             <input
               type="text" value={lobbyName}
               onChange={(e) => setLobbyName(e.target.value)}
-              placeholder="ornek: Turkiye Cografya Quiz'i"
+              placeholder={t('createQuiz.quizNamePlaceholder')}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
             />
           </div>
@@ -186,10 +179,10 @@ export default function CreateQuiz() {
           {questions.map((q, qIdx) => (
             <div key={qIdx} className="rounded-xl border border-gray-800 bg-gray-900 p-5">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Soru {qIdx + 1}</h3>
+                <h3 className="text-sm font-semibold text-white">{t('quiz.question', { n: qIdx + 1 })}</h3>
                 {questions.length > 1 && (
                   <button onClick={() => removeQuestion(qIdx)} className="text-xs text-red-400 hover:text-red-300">
-                    Sil
+                    {t('createQuiz.delete')}
                   </button>
                 )}
               </div>
@@ -197,7 +190,7 @@ export default function CreateQuiz() {
               <input
                 type="text" value={q.question}
                 onChange={(e) => updateQuestion(qIdx, 'question', e.target.value)}
-                placeholder="Soru metni..."
+                placeholder={t('createQuiz.questionPlaceholder')}
                 className="mb-3 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
               />
 
@@ -206,20 +199,20 @@ export default function CreateQuiz() {
                   <input
                     key={optIdx} type="text" value={opt}
                     onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
-                    placeholder={`Secenek ${String.fromCharCode(65 + optIdx)}`}
+                    placeholder={`${t('common.option', { n: '' })}${String.fromCharCode(65 + optIdx)}`}
                     className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
                   />
                 ))}
               </div>
 
               <div>
-                <label className="mb-1 block text-xs text-gray-500">Dogru Cevap</label>
+                <label className="mb-1 block text-xs text-gray-500">{t('createQuiz.correctAnswer')}</label>
                 <select
                   value={q.correctAnswer}
                   onChange={(e) => updateQuestion(qIdx, 'correctAnswer', e.target.value)}
                   className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
                 >
-                  <option value="">Sec...</option>
+                  <option value="">{t('createQuiz.selectAnswer')}</option>
                   {q.options.filter(Boolean).map((opt, i) => (
                     <option key={i} value={opt}>{String.fromCharCode(65 + i)}: {opt}</option>
                   ))}
@@ -232,14 +225,14 @@ export default function CreateQuiz() {
             onClick={addQuestion}
             className="w-full rounded-lg border border-dashed border-gray-700 px-4 py-3 text-sm text-gray-400 hover:border-purple-600 hover:text-purple-400"
           >
-            + Soru Ekle
+            + {t('createQuiz.addQuestion')}
           </button>
 
           <button
             onClick={handleNext}
             className="w-full rounded-lg bg-purple-600 px-4 py-3 text-sm font-medium text-white hover:bg-purple-500"
           >
-            Devam ({questions.length} soru)
+            {t('createQuiz.continue')} ({t('quiz.questions', { count: questions.length })})
           </button>
         </div>
       )}
@@ -247,23 +240,23 @@ export default function CreateQuiz() {
       {/* Step 2: Config */}
       {step === 'config' && (
         <div className="space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <Field label="Soru Suresi (saniye)" value={questionDuration} onChange={setQuestionDuration} type="number" help="Her soru icin cevaplama suresi" />
-          <Field label="Reveal Penceresi (saniye)" value={revealWindow} onChange={setRevealWindow} type="number" help="Quiz bittikten sonra cevap acma suresi" />
-          <Field label="Stake (MON)" value={stakeAmount} onChange={setStakeAmount} help="Quiz'i tamamlamazsan katilimcilara dagitilir" />
+          <Field label={t('createQuiz.questionDuration')} value={questionDuration} onChange={setQuestionDuration} type="number" help={t('createQuiz.questionDurationHelp')} />
+          <Field label={t('createVote.revealWindow')} value={revealWindow} onChange={setRevealWindow} type="number" help={t('createQuiz.revealWindowHelp')} />
+          <Field label={t('createVote.stake')} value={stakeAmount} onChange={setStakeAmount} help={t('createQuiz.stakeHelp')} />
 
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setStep('questions')}
               className="flex-1 rounded-lg bg-gray-800 px-4 py-3 text-sm text-gray-300 hover:bg-gray-700"
             >
-              Geri
+              {t('createQuiz.back')}
             </button>
             <button
               onClick={handleDeploy}
               disabled={loading}
               className="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50"
             >
-              {loading ? 'Isleniyor...' : 'Quiz Olustur & Deploy'}
+              {loading ? t('common.processing') : t('createQuiz.deploy')}
             </button>
           </div>
         </div>
@@ -272,8 +265,8 @@ export default function CreateQuiz() {
       {/* Step 3: Deploying */}
       {step === 'deploying' && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center">
-          <div className="mb-4 animate-pulse text-lg text-purple-400">{deployStatus || 'Isleniyor...'}</div>
-          <p className="text-sm text-gray-500">Lutfen bekleyin, islem tamamlaninca otomatik yonlendirileceksiniz.</p>
+          <div className="mb-4 animate-pulse text-lg text-purple-400">{deployStatus || t('common.processing')}</div>
+          <p className="text-sm text-gray-500">{t('createQuiz.deployingWait')}</p>
         </div>
       )}
     </div>

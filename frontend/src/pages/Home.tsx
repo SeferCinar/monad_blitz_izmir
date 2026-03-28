@@ -4,19 +4,22 @@ import { LobbyFactoryABI } from '../abi/LobbyFactory'
 import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
 import LobbyCard from '../components/LobbyCard'
 import type { Address } from 'viem'
+import { useT } from '../i18n/LanguageContext'
+import type { TranslationKey } from '../i18n/translations'
 
 type PhaseFilter = 'all' | '0' | '1' | '2' | '3'
 
-const FILTER_LABELS: Record<PhaseFilter, string> = {
-  all: 'Tumu',
-  '0': 'Beklemede',
-  '1': 'Aktif',
-  '2': 'Reveal',
-  '3': 'Bitti',
+const FILTER_KEYS: Record<PhaseFilter, TranslationKey> = {
+  all: 'filter.all',
+  '0': 'filter.pending',
+  '1': 'filter.active',
+  '2': 'filter.reveal',
+  '3': 'filter.finished',
 }
 
 export default function Home() {
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all')
+  const { t } = useT()
 
   const { data: quizCount } = useReadContract({
     address: LOBBY_FACTORY_ADDRESS,
@@ -59,16 +62,16 @@ export default function Home() {
   return (
     <div className="animate-fade-in">
       <div className="mb-10 text-center">
-        <h1 className="mb-2 text-4xl font-bold text-white">Monad Blitz</h1>
-        <p className="text-gray-400">Merkeziyetsiz Quiz & Oylama Platformu</p>
+        <h1 className="mb-2 text-4xl font-bold text-white">{t('home.title')}</h1>
+        <p className="text-gray-400">{t('home.subtitle')}</p>
         {totalLobbies > 0 && (
-          <p className="mt-2 text-sm text-gray-600">{totalLobbies} aktif lobi</p>
+          <p className="mt-2 text-sm text-gray-600">{t('home.activeLobbies', { count: totalLobbies })}</p>
         )}
       </div>
 
       {/* Phase filter */}
       <div className="mb-6 flex flex-wrap gap-2 justify-center">
-        {(Object.keys(FILTER_LABELS) as PhaseFilter[]).map((key) => (
+        {(Object.keys(FILTER_KEYS) as PhaseFilter[]).map((key) => (
           <button
             key={key}
             onClick={() => setPhaseFilter(key)}
@@ -78,7 +81,7 @@ export default function Home() {
                 : 'bg-gray-800/60 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
             }`}
           >
-            {FILTER_LABELS[key]}
+            {t(FILTER_KEYS[key])}
           </button>
         ))}
       </div>
@@ -86,7 +89,7 @@ export default function Home() {
       {quizList.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-4 text-xl font-semibold text-white flex items-center gap-2">
-            🎯 Quizler
+            🎯 {t('home.quizzes')}
             <span className="text-sm font-normal text-gray-500">({quizList.length})</span>
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 stagger-children">
@@ -100,7 +103,7 @@ export default function Home() {
       {voteList.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-semibold text-white flex items-center gap-2">
-            🗳️ Oylamalar
+            🗳️ {t('home.votes')}
             <span className="text-sm font-normal text-gray-500">({voteList.length})</span>
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 stagger-children">
@@ -114,8 +117,8 @@ export default function Home() {
       {totalLobbies === 0 && (
         <div className="text-center py-16 animate-fade-in">
           <div className="text-5xl mb-4">🚀</div>
-          <p className="text-gray-400 mb-2">Henuz lobi yok.</p>
-          <p className="text-sm text-gray-600">Ilk quiz veya oylamayi sen olustur!</p>
+          <p className="text-gray-400 mb-2">{t('home.noLobbies')}</p>
+          <p className="text-sm text-gray-600">{t('home.createFirst')}</p>
         </div>
       )}
     </div>

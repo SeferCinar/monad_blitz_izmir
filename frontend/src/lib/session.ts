@@ -70,3 +70,14 @@ export function saveLobbyName(lobbyAddr: string, name: string): void {
 export function loadLobbyName(lobbyAddr: string): string {
   return localStorage.getItem(`lobby-name-${lobbyAddr.toLowerCase()}`) ?? ''
 }
+
+// Oylama secenek isimleri — adres bazli localStorage
+export function saveVoteOptions(lobbyAddr: string, options: string[]): void {
+  localStorage.setItem(`vote-options-${lobbyAddr.toLowerCase()}`, JSON.stringify(options))
+}
+
+export function loadVoteOptions(lobbyAddr: string): string[] {
+  const raw = localStorage.getItem(`vote-options-${lobbyAddr.toLowerCase()}`)
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}

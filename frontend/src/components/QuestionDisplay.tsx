@@ -3,12 +3,12 @@ import { useReadContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
 import { fetchFromIpfs, bytes32ToCid, type IpfsQuizPayload } from '../lib/ipfs'
 import type { Address } from 'viem'
+import { useT } from '../i18n/LanguageContext'
 
 type Props = {
   lobbyAddress: Address
   questionIndex: number
   ipfsCid?: string
-  /** Render prop for interactive answer area */
   children?: (options: string[], questionText: string) => React.ReactNode
 }
 
@@ -18,6 +18,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
   const [ipfsData, setIpfsData] = useState<IpfsQuizPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { t } = useT()
 
   const { data: ipfsCidBytes32 } = useReadContract({
     address: lobbyAddress, abi: QuizLobbyABI, functionName: 'ipfsCID',
@@ -36,7 +37,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
     setLoading(true)
     fetchFromIpfs(resolvedCid)
       .then(setIpfsData)
-      .catch((e) => setError(`IPFS yuklenemedi: ${e.message}`))
+      .catch((e) => setError(`IPFS: ${e.message}`))
       .finally(() => setLoading(false))
   }, [resolvedCid])
 
@@ -67,7 +68,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
   if (!question) {
     if (!resolvedCid) return (
       <div className="rounded-xl border border-red-800/30 bg-red-900/10 p-5 animate-fade-in">
-        <p className="text-sm text-red-400">Soru verisi bulunamadi.</p>
+        <p className="text-sm text-red-400">{t('quiz.questionNotFound')}</p>
       </div>
     )
     return (
@@ -80,7 +81,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
 
   return (
     <div className="rounded-xl border border-purple-800/30 bg-purple-900/10 p-5 animate-scale-in">
-      <p className="mb-1 text-xs text-purple-400 font-medium">Soru {questionIndex + 1}</p>
+      <p className="mb-1 text-xs text-purple-400 font-medium">{t('quiz.question', { n: questionIndex + 1 })}</p>
       <p className="mb-5 text-lg font-semibold text-white leading-relaxed">{question.question}</p>
       {children ? children(question.options, question.question) : (
         <div className="grid grid-cols-2 gap-3 stagger-children">

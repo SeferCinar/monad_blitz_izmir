@@ -4,9 +4,11 @@ import { QuizLobbyABI } from '../abi/QuizLobby'
 import { VoteLobbyABI } from '../abi/VoteLobby'
 import { formatEther, type Address } from 'viem'
 import { loadCid } from '../lib/session'
+import { useT } from '../i18n/LanguageContext'
+import type { TranslationKey } from '../i18n/translations'
 
-const PHASE_LABELS_QUIZ = ['Beklemede', 'Aktif', 'Reveal', 'Bitti'] as const
-const PHASE_LABELS_VOTE = ['Beklemede', 'Oylama', 'Reveal', 'Bitti'] as const
+const PHASE_KEYS_QUIZ: TranslationKey[] = ['phase.pending', 'phase.active', 'phase.reveal', 'phase.finished']
+const PHASE_KEYS_VOTE: TranslationKey[] = ['phase.pending', 'phase.voting', 'phase.reveal', 'phase.finished']
 const PHASE_COLORS = ['text-yellow-400', 'text-green-400', 'text-blue-400', 'text-gray-500'] as const
 const PHASE_BG = ['bg-yellow-900/20', 'bg-green-900/20', 'bg-blue-900/20', 'bg-gray-800/50'] as const
 
@@ -18,8 +20,9 @@ type Props = {
 
 export default function LobbyCard({ address, type, phaseFilter = 'all' }: Props) {
   const abi = type === 'quiz' ? QuizLobbyABI : VoteLobbyABI
-  const phaseLabels = type === 'quiz' ? PHASE_LABELS_QUIZ : PHASE_LABELS_VOTE
+  const phaseKeys = type === 'quiz' ? PHASE_KEYS_QUIZ : PHASE_KEYS_VOTE
   const { address: userAddr } = useAccount()
+  const { t } = useT()
 
   const { data: lobbyName } = useReadContract({ address, abi, functionName: 'name' })
   const { data: phase } = useReadContract({ address, abi, functionName: 'phase' })
@@ -50,24 +53,24 @@ export default function LobbyCard({ address, type, phaseFilter = 'all' }: Props)
           <span className="text-lg">{icon}</span>
           {isOwner && (
             <span className="rounded-full bg-purple-900/50 px-2 py-0.5 text-xs font-medium text-purple-300">
-              Senin
+              {t('lobby.yours')}
             </span>
           )}
           {isMember && !isOwner && (
             <span className="rounded-full bg-green-900/50 px-2 py-0.5 text-xs font-medium text-green-300">
-              Katildin
+              {t('lobby.joined')}
             </span>
           )}
         </div>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${PHASE_BG[phaseIdx]} ${PHASE_COLORS[phaseIdx]}`}>
-          {phaseLabels[phaseIdx]}
+          {t(phaseKeys[phaseIdx])}
         </span>
       </div>
       <p className="mb-2 text-sm font-medium text-white truncate">
-        {(lobbyName as string) || 'Isimsiz Lobi'}
+        {(lobbyName as string) || t('lobby.unnamed')}
       </p>
       <div className="flex gap-4 text-sm text-gray-400">
-        <span>{memCount} katilimci</span>
+        <span>{t('lobby.participants', { count: memCount })}</span>
         {stake !== undefined && Number(stake) > 0 && (
           <span>{formatEther(stake)} MON</span>
         )}

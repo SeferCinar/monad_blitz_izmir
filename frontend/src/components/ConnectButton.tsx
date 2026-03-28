@@ -1,11 +1,13 @@
 import { useConnect, useDisconnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { useAuth } from '../hooks/useAuth'
+import { useT } from '../i18n/LanguageContext'
 
 export default function ConnectButton() {
   const { address, isConnected, isWrongChain, switchToMonad } = useAuth()
   const { connect } = useConnect()
   const { disconnect } = useDisconnect()
+  const { t } = useT()
 
   if (!isConnected) {
     return (
@@ -13,7 +15,7 @@ export default function ConnectButton() {
         onClick={() => connect({ connector: injected() })}
         className="rounded-full bg-purple-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-200"
       >
-        Baglan
+        {t('wallet.connect')}
       </button>
     )
   }
@@ -24,7 +26,7 @@ export default function ConnectButton() {
         onClick={switchToMonad}
         className="rounded-full bg-yellow-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-yellow-500 transition-all duration-200 animate-pulse"
       >
-        Monad'a Gec
+        {t('wallet.switchMonad')}
       </button>
     )
   }
@@ -38,7 +40,7 @@ export default function ConnectButton() {
         onClick={() => disconnect()}
         className="rounded-full bg-gray-800/60 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-700 hover:text-gray-300 transition-all duration-200"
       >
-        Cikis
+        {t('wallet.disconnect')}
       </button>
     </div>
   )

@@ -11,8 +11,11 @@ import TxToast from '../components/TxToast'
 import CountdownTimer from '../components/CountdownTimer'
 import MemberList from '../components/MemberList'
 import { generateRandomBytes32 } from '../lib/crypto'
+import { loadVoteOptions } from '../lib/session'
+import { useT } from '../i18n/LanguageContext'
+import type { TranslationKey } from '../i18n/translations'
 
-const PHASE_LABELS = ['Beklemede', 'Oylama', 'Reveal', 'Bitti'] as const
+const PHASE_KEYS: TranslationKey[] = ['phase.pending', 'phase.voting', 'phase.reveal', 'phase.finished']
 const PHASE_COLORS = ['text-yellow-400', 'text-green-400', 'text-blue-400', 'text-gray-500'] as const
 const PHASE_BG = ['bg-yellow-900/20', 'bg-green-900/20', 'bg-blue-900/20', 'bg-gray-800/50'] as const
 
@@ -41,6 +44,7 @@ export default function VoteLobbyPage() {
   const { address: lobbyAddr } = useParams<{ address: string }>()
   const lobby = lobbyAddr as Address
   const { address: userAddr } = useAuth()
+  const { t } = useT()
 
   useVoteEvents(lobby)
 
@@ -96,6 +100,10 @@ export default function VoteLobbyPage() {
   const voteDeadline = vStart > 0 ? vStart + vDuration : undefined
   const revealDl = revealDeadline !== undefined ? Number(revealDeadline) : undefined
 
+  // Load saved vote options labels
+  const optionLabels = loadVoteOptions(lobby)
+  const getOptionLabel = (i: number) => optionLabels[i] || t('common.option', { n: i + 1 })
+
   // Onceden commit edilmis oyu yukle
   useEffect(() => {
     const saved = loadVoteCommit(lobby)
@@ -122,7 +130,6 @@ export default function VoteLobbyPage() {
         })
         setRevealDone(true)
       } catch {
-        // Zaten reveal edilmis olabilir
         setRevealDone(true)
       }
     })()
@@ -136,7 +143,6 @@ export default function VoteLobbyPage() {
 
   const handleVote = (optionIndex: number) => {
     if (hasCommitted) return
-    // Optimistic
     setOptimisticVote(optionIndex)
     setHasCommitted(true)
 
@@ -150,19 +156,19 @@ export default function VoteLobbyPage() {
     <div className="animate-fade-in">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">{(lobbyName as string) || 'Oylama'}</h1>
+        <h1 className="text-2xl font-bold text-white">{(lobbyName as string) || t('vote.title')}</h1>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${PHASE_BG[phaseIdx]} ${PHASE_COLORS[phaseIdx]}`}>
-          {PHASE_LABELS[phaseIdx]}
+          {t(PHASE_KEYS[phaseIdx])}
         </span>
-        {isOwner && <span className="rounded-full bg-purple-900/50 px-3 py-1 text-xs text-purple-300">Yonetici</span>}
-        {isMember && !isOwner && <span className="rounded-full bg-green-900/50 px-3 py-1 text-xs text-green-300">Katilimci</span>}
+        {isOwner && <span className="rounded-full bg-purple-900/50 px-3 py-1 text-xs text-purple-300">{t('common.admin')}</span>}
+        {isMember && !isOwner && <span className="rounded-full bg-green-900/50 px-3 py-1 text-xs text-green-300">{t('common.participant')}</span>}
       </div>
 
       {/* Compact info */}
       <div className="mb-6 flex items-center gap-4 flex-wrap text-sm text-gray-400">
-        <span>{memCount} katilimci</span>
+        <span>{t('lobby.participants', { count: memCount })}</span>
         <span className="text-gray-700">|</span>
-        <span>{optCount} secenek</span>
+        <span>{t('vote.options', { count: optCount })}</span>
         {phaseIdx === 1 && (
           <>
             <span className="text-gray-700">|</span>
@@ -172,27 +178,27 @@ export default function VoteLobbyPage() {
         {phaseIdx === 2 && revealDl && (
           <>
             <span className="text-gray-700">|</span>
-            <CountdownTimer deadline={revealDl} label="Kalan:" />
+            <CountdownTimer deadline={revealDl} label={t('common.remaining')} />
           </>
         )}
         <button
           onClick={() => setShowDetails(!showDetails)}
           className="ml-auto text-xs text-gray-600 hover:text-gray-400 transition"
         >
-          {showDetails ? 'Gizle' : 'Detaylar'}
+          {showDetails ? t('common.hide') : t('common.details')}
         </button>
       </div>
 
       {showDetails && (
         <div className="mb-6 grid gap-3 rounded-xl border border-gray-800/50 bg-gray-900/50 p-4 sm:grid-cols-3 animate-fade-in-up text-xs">
-          <Info label="Kontrat" value={`${lobby.slice(0, 6)}...${lobby.slice(-4)}`} mono />
-          <Info label="Oylama Suresi" value={voteDuration !== undefined ? formatDuration(Number(voteDuration)) : '...'} />
-          <Info label="Reveal Penceresi" value={revealWindow !== undefined ? formatDuration(Number(revealWindow)) : '...'} />
-          <Info label="Stake" value={stake !== undefined ? `${formatEther(stake)} MON` : '...'} />
+          <Info label={t('common.contract')} value={`${lobby.slice(0, 6)}...${lobby.slice(-4)}`} mono />
+          <Info label={t('vote.voteDuration')} value={voteDuration !== undefined ? formatDuration(Number(voteDuration)) : '...'} />
+          <Info label={t('vote.revealWindow')} value={revealWindow !== undefined ? formatDuration(Number(revealWindow)) : '...'} />
+          <Info label={t('common.stake')} value={stake !== undefined ? `${formatEther(stake)} MON` : '...'} />
           <Info label="Reveal" value={totalRevealed !== undefined ? String(Number(totalRevealed)) : '0'} />
           <div>
             <button onClick={() => setShowMembers(!showMembers)} className="text-gray-500 hover:text-gray-300 transition">
-              {showMembers ? 'Gizle' : `${memCount} uye`}
+              {showMembers ? t('common.hide') : t('common.members', { count: memCount })}
             </button>
           </div>
         </div>
@@ -207,29 +213,29 @@ export default function VoteLobbyPage() {
       <div className="space-y-4">
         {/* PENDING */}
         {phaseIdx === 0 && (
-          <WalletGuard fallbackMessage="Katilmak icin cuzdan bagla.">
+          <WalletGuard fallbackMessage={t('wallet.connectWallet')}>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-fade-in-up">
               {!isMember && !isOwner && (
                 <div className="text-center">
                   <div className="mb-4 text-5xl">🗳️</div>
-                  <h2 className="mb-2 text-lg font-semibold text-white">Oylamaya Katil</h2>
+                  <h2 className="mb-2 text-lg font-semibold text-white">{t('vote.joinTitle')}</h2>
                   <p className="mb-4 text-sm text-gray-400">
-                    {memCount > 0 ? `${memCount} kisi katildi` : 'Ilk katilimci sen ol!'}
+                    {memCount > 0 ? t('vote.joinCount', { count: memCount }) : t('vote.joinFirst')}
                   </p>
-                  <ActionButton onClick={handleJoin} loading={loading} size="lg">Katil</ActionButton>
+                  <ActionButton onClick={handleJoin} loading={loading} size="lg" label={t('common.processing')}>{t('common.join')}</ActionButton>
                 </div>
               )}
               {isMember && (
                 <div className="text-center animate-fade-in">
                   <div className="mb-3 text-4xl">✅</div>
-                  <p className="text-green-300 font-medium">Hazirsin!</p>
-                  <p className="text-sm text-gray-500 mt-1">Oylama basladiginda secenekler burada gorunecek.</p>
+                  <p className="text-green-300 font-medium">{t('vote.ready')}</p>
+                  <p className="text-sm text-gray-500 mt-1">{t('vote.readyDesc')}</p>
                 </div>
               )}
               {isOwner && (
                 <div className="mt-4 pt-4 border-t border-gray-800">
-                  <ActionButton onClick={handleStartVoting} loading={loading} size="lg" fullWidth>
-                    Oylamayi Baslat ({memCount} katilimci)
+                  <ActionButton onClick={handleStartVoting} loading={loading} size="lg" fullWidth label={t('common.processing')}>
+                    {t('vote.startVoting', { count: memCount })}
                   </ActionButton>
                 </div>
               )}
@@ -245,14 +251,14 @@ export default function VoteLobbyPage() {
                 {hasCommitted ? (
                   <div className="text-center py-4 animate-fade-in">
                     <div className="text-5xl mb-3 animate-check-pop">✅</div>
-                    <p className="text-green-300 font-semibold text-lg">Oyun gonderildi!</p>
+                    <p className="text-green-300 font-semibold text-lg">{t('vote.sent')}</p>
                     <p className="text-sm text-gray-500 mt-2">
-                      Secenek {optimisticVote !== null ? optimisticVote + 1 : '?'} sectin.
+                      {optimisticVote !== null ? t('vote.selectedOption', { n: optimisticVote + 1 }) + ` — ${getOptionLabel(optimisticVote)}` : ''}
                     </p>
                   </div>
                 ) : (
                   <>
-                    <h2 className="mb-4 text-lg font-semibold text-white">Oyunu sec</h2>
+                    <h2 className="mb-4 text-lg font-semibold text-white">{t('vote.selectOption')}</h2>
                     <div className={`grid gap-3 stagger-children ${optCount <= 3 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       {Array.from({ length: optCount }, (_, i) => {
                         const s = VOTE_STYLES[i % VOTE_STYLES.length]
@@ -264,7 +270,7 @@ export default function VoteLobbyPage() {
                             className={`${s.bg} ${s.hover} rounded-xl px-5 py-5 text-white font-bold text-base flex items-center gap-3 transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <span className="text-2xl">{s.emoji}</span>
-                            <span>Secenek {i + 1}</span>
+                            <span>{getOptionLabel(i)}</span>
                           </button>
                         )
                       })}
@@ -276,15 +282,15 @@ export default function VoteLobbyPage() {
 
             {!isMember && !isOwner && (
               <div className="rounded-xl border border-gray-800/50 bg-gray-900/50 p-5 text-center animate-fade-in">
-                <p className="text-sm text-gray-500">Oylamayi izliyorsun.</p>
+                <p className="text-sm text-gray-500">{t('vote.watching')}</p>
               </div>
             )}
 
             {isOwner && (
               <WalletGuard>
                 <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 flex items-center justify-between animate-fade-in-up">
-                  <p className="text-sm text-gray-400">Oylama suresi dolduysa reveal'a gec.</p>
-                  <ActionButton onClick={handleEndVoting} loading={loading}>Oylamayi Bitir</ActionButton>
+                  <p className="text-sm text-gray-400">{t('vote.endVotingHint')}</p>
+                  <ActionButton onClick={handleEndVoting} loading={loading} label={t('common.processing')}>{t('vote.endVoting')}</ActionButton>
                 </div>
               </WalletGuard>
             )}
@@ -299,12 +305,12 @@ export default function VoteLobbyPage() {
                 {revealDone ? (
                   <div className="flex items-center gap-3 animate-fade-in">
                     <span className="text-green-400 animate-check-pop">✓</span>
-                    <p className="text-sm text-green-300 font-medium">Oyun aciklandi!</p>
+                    <p className="text-sm text-green-300 font-medium">{t('vote.revealed')}</p>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
-                    <p className="text-sm text-gray-400">Oyun otomatik aciklaniyor...</p>
+                    <p className="text-sm text-gray-400">{t('vote.revealing')}</p>
                   </div>
                 )}
               </div>
@@ -312,8 +318,8 @@ export default function VoteLobbyPage() {
 
             <WalletGuard>
               <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 flex items-center justify-between">
-                <p className="text-sm text-gray-400">Reveal suresi dolduysa oylamayi sonlandir.</p>
-                <ActionButton onClick={handleFinish} loading={loading}>Sonlandir</ActionButton>
+                <p className="text-sm text-gray-400">{t('vote.finishHint')}</p>
+                <ActionButton onClick={handleFinish} loading={loading} label={t('common.processing')}>{t('vote.finish')}</ActionButton>
               </div>
             </WalletGuard>
           </div>
@@ -323,7 +329,7 @@ export default function VoteLobbyPage() {
         {phaseIdx === 3 && (
           <div className="space-y-4 animate-fade-in-up">
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
-              <h2 className="mb-5 text-lg font-semibold text-white">Sonuclar</h2>
+              <h2 className="mb-5 text-lg font-semibold text-white">{t('vote.results')}</h2>
               <div className="space-y-3 stagger-children">
                 {tallyResults?.map((result, i) => {
                   const votes = result.status === 'success' ? Number(result.result) : 0
@@ -336,7 +342,7 @@ export default function VoteLobbyPage() {
                   return (
                     <div key={i} className={`flex items-center gap-3 rounded-xl p-3 transition-all ${isWinner ? 'bg-purple-900/20 border border-purple-700/30' : 'bg-gray-800/40'}`}>
                       <span className="text-xl">{s.emoji}</span>
-                      <span className="w-20 text-sm text-gray-300 font-medium">Secenek {i + 1}</span>
+                      <span className="w-28 text-sm text-gray-300 font-medium truncate">{getOptionLabel(i)}</span>
                       <div className="flex-1 rounded-full bg-gray-800 h-4 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-700 ease-out animate-progress-fill ${isWinner ? 'bg-purple-500' : 'bg-gray-600'}`}
@@ -344,7 +350,7 @@ export default function VoteLobbyPage() {
                         />
                       </div>
                       <span className="w-24 text-right text-sm text-gray-300 font-medium">
-                        {votes} oy ({pct.toFixed(0)}%)
+                        {t('common.votes', { count: votes })} ({pct.toFixed(0)}%)
                       </span>
                       {isWinner && <span className="text-yellow-400">🏆</span>}
                     </div>
@@ -356,8 +362,8 @@ export default function VoteLobbyPage() {
             {isOwner && (
               <WalletGuard>
                 <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 flex items-center justify-between">
-                  <p className="text-sm text-gray-400">Stake'ini geri cek.</p>
-                  <ActionButton onClick={handleWithdraw} loading={loading}>Stake Cek</ActionButton>
+                  <p className="text-sm text-gray-400">{t('vote.withdrawHint')}</p>
+                  <ActionButton onClick={handleWithdraw} loading={loading} label={t('common.processing')}>{t('vote.withdraw')}</ActionButton>
                 </div>
               </WalletGuard>
             )}
@@ -379,8 +385,8 @@ function Info({ label, value, mono }: { label: string; value: string; mono?: boo
   )
 }
 
-function ActionButton({ onClick, loading, children, variant = 'primary', size = 'md', fullWidth = false }: {
-  onClick: () => void; loading: boolean; children: React.ReactNode; variant?: 'primary' | 'danger'; size?: 'md' | 'lg'; fullWidth?: boolean
+function ActionButton({ onClick, loading, children, variant = 'primary', size = 'md', fullWidth = false, label }: {
+  onClick: () => void; loading: boolean; children: React.ReactNode; variant?: 'primary' | 'danger'; size?: 'md' | 'lg'; fullWidth?: boolean; label?: string
 }) {
   const colors = variant === 'danger'
     ? 'bg-red-600/80 hover:bg-red-500 text-red-100'
@@ -395,7 +401,7 @@ function ActionButton({ onClick, loading, children, variant = 'primary', size = 
       {loading ? (
         <span className="flex items-center justify-center gap-2">
           <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-          Isleniyor...
+          {label || 'Processing...'}
         </span>
       ) : children}
     </button>
@@ -406,5 +412,5 @@ function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
-  return s > 0 ? `${m}dk ${s}s` : `${m}dk`
+  return s > 0 ? `${m}m ${s}s` : `${m}m`
 }

@@ -10,6 +10,7 @@ import type { Address } from 'viem'
 import { useState, useEffect } from 'react'
 import { keccak256, encodePacked } from 'viem'
 import { loadQuizSession } from '../lib/session'
+import { useT } from '../i18n/LanguageContext'
 
 const RANK_STYLES = [
   'bg-yellow-900/20 border border-yellow-700/30',
@@ -23,6 +24,7 @@ export default function ScoreBoardPage() {
   const { address: boardAddr } = useParams<{ address: string }>()
   const board = boardAddr as Address
   const { address: userAddr } = useAuth()
+  const { t } = useT()
 
   const { data: quizLobbyAddr } = useReadContract({ address: board, abi: ScoreBoardABI, functionName: 'quizLobby' })
   const { data: owner } = useReadContract({ address: board, abi: ScoreBoardABI, functionName: 'owner' })
@@ -80,7 +82,7 @@ export default function ScoreBoardPage() {
   const handleSubmitAnswers = () => {
     const answers = correctAnswers.split('\n').map((a) => a.trim()).filter(Boolean)
     if (answers.length !== qCount) {
-      alert(`${qCount} cevap gerekli, ${answers.length} girildi.`)
+      alert(t('score.answerMismatch', { expected: qCount, got: answers.length }))
       return
     }
     const hashes = answers.map((a) => keccak256(encodePacked(['string'], [a])))
@@ -101,32 +103,31 @@ export default function ScoreBoardPage() {
     }))
     .sort((a, b) => b.score - a.score)
 
-  const statusLabel = scored ? 'Skorlar Hazir' : answersSubmitted ? 'Hesaplanmayi Bekliyor' : 'Cevap Bekleniyor'
+  const statusLabel = scored ? t('score.ready') : answersSubmitted ? t('score.waiting') : t('score.awaitingAnswers')
   const statusColor = scored ? 'text-green-400 bg-green-900/20' : answersSubmitted ? 'text-blue-400 bg-blue-900/20' : 'text-yellow-400 bg-yellow-900/20'
 
   return (
     <div className="animate-fade-in">
       <div className="mb-6 flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">Skor Tablosu</h1>
+        <h1 className="text-2xl font-bold text-white">{t('score.title')}</h1>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor}`}>
           {statusLabel}
         </span>
       </div>
 
       <div className="mb-6 flex items-center gap-4 text-sm text-gray-400">
-        <span>{qCount} soru</span>
+        <span>{t('quiz.questions', { count: qCount })}</span>
         <span className="text-gray-700">|</span>
-        <span>{memCount} katilimci</span>
+        <span>{t('lobby.participants', { count: memCount })}</span>
       </div>
 
       <div className="space-y-4">
-        {/* Owner: cevap girisi */}
         {!answersSubmitted && isOwner && (
           <WalletGuard>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-fade-in-up">
-              <h2 className="mb-3 text-lg font-semibold text-white">Dogru Cevaplari Gir</h2>
+              <h2 className="mb-3 text-lg font-semibold text-white">{t('score.enterAnswers')}</h2>
               <p className="mb-3 text-sm text-gray-400">
-                Her satira bir cevap yaz (soru sirasi ile ayni sirada). Toplam {qCount} cevap gerekli.
+                {t('score.enterAnswersDesc', { count: qCount })}
               </p>
               <textarea
                 value={correctAnswers}
@@ -140,35 +141,33 @@ export default function ScoreBoardPage() {
                 disabled={loading}
                 className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-500/20 disabled:opacity-50 transition-all duration-200"
               >
-                {loading ? 'Isleniyor...' : 'Cevaplari Gonder'}
+                {loading ? t('common.processing') : t('score.submitAnswers')}
               </button>
             </div>
           </WalletGuard>
         )}
 
-        {/* Skor hesapla */}
         {answersSubmitted && !scored && (
           <WalletGuard>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 flex items-center justify-between animate-fade-in-up">
               <div>
-                <h2 className="text-lg font-semibold text-white">Skorlari Hesapla</h2>
-                <p className="text-sm text-gray-400">Cevaplar girildi, skorlama calistir.</p>
+                <h2 className="text-lg font-semibold text-white">{t('score.calculateTitle')}</h2>
+                <p className="text-sm text-gray-400">{t('score.calculateDesc')}</p>
               </div>
               <button
                 onClick={handleCalculateScores}
                 disabled={loading}
                 className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-500/20 disabled:opacity-50 transition-all duration-200"
               >
-                {loading ? 'Isleniyor...' : 'Hesapla'}
+                {loading ? t('common.processing') : t('score.calculate')}
               </button>
             </div>
           </WalletGuard>
         )}
 
-        {/* Leaderboard */}
         {scored && (
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-scale-in">
-            <h2 className="mb-5 text-lg font-semibold text-white">Siralama</h2>
+            <h2 className="mb-5 text-lg font-semibold text-white">{t('score.leaderboard')}</h2>
             <div className="space-y-2 stagger-children">
               {leaderboard.map((entry, rank) => {
                 const isMe = entry.address.toLowerCase() === userAddr?.toLowerCase()
@@ -184,7 +183,7 @@ export default function ScoreBoardPage() {
                     </span>
                     <span className="flex-1 font-mono text-sm text-gray-300">
                       {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
-                      {isMe && <span className="ml-2 text-purple-400 font-sans">(sen)</span>}
+                      {isMe && <span className="ml-2 text-purple-400 font-sans">{t('score.you')}</span>}
                     </span>
                     <span className="text-lg font-bold text-white">
                       {entry.score}<span className="text-gray-500 text-sm font-normal">/{qCount}</span>
@@ -199,7 +198,7 @@ export default function ScoreBoardPage() {
         {!answersSubmitted && !isOwner && (
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-10 text-center animate-fade-in">
             <div className="text-4xl mb-3">⏳</div>
-            <p className="text-gray-400">Skorlar henuz hazir degil.</p>
+            <p className="text-gray-400">{t('score.notReady')}</p>
           </div>
         )}
       </div>

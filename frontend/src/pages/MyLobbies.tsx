@@ -7,9 +7,11 @@ import { useAuth } from '../hooks/useAuth'
 import LobbyCard from '../components/LobbyCard'
 import WalletGuard from '../components/WalletGuard'
 import type { Address } from 'viem'
+import { useT } from '../i18n/LanguageContext'
 
 export default function MyLobbies() {
   const { address: userAddr } = useAuth()
+  const { t } = useT()
 
   const { data: quizCount } = useReadContract({
     address: LOBBY_FACTORY_ADDRESS,
@@ -47,7 +49,6 @@ export default function MyLobbies() {
   const quizList = quizAddresses?.filter((r) => r.status === 'success').map((r) => r.result as Address) ?? []
   const voteList = voteAddresses?.filter((r) => r.status === 'success').map((r) => r.result as Address) ?? []
 
-  // Check membership/ownership for each lobby
   const { data: quizMembership } = useReadContracts({
     contracts: quizList.flatMap((addr) => [
       { address: addr, abi: QuizLobbyABI, functionName: 'isMember' as const, args: [userAddr!] as const },
@@ -84,18 +85,18 @@ export default function MyLobbies() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-white">Lobilerim</h1>
+      <h1 className="mb-6 text-2xl font-bold text-white">{t('myLobbies.title')}</h1>
 
-      <WalletGuard fallbackMessage="Lobilerini gormek icin cuzdan bagla.">
+      <WalletGuard fallbackMessage={t('myLobbies.connectHint')}>
         {myQuizzes.length === 0 && myVotes.length === 0 ? (
           <div className="rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
-            <p className="text-gray-500">Henuz hicbir lobiye katilmadin veya olusturmadin.</p>
+            <p className="text-gray-500">{t('myLobbies.empty')}</p>
           </div>
         ) : (
           <div className="space-y-8">
             {myQuizzes.length > 0 && (
               <section>
-                <h2 className="mb-4 text-lg font-semibold text-white">Quiz Lobileri ({myQuizzes.length})</h2>
+                <h2 className="mb-4 text-lg font-semibold text-white">{t('myLobbies.quizLobbies')} ({myQuizzes.length})</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {myQuizzes.map((addr) => (
                     <LobbyCard key={addr} address={addr} type="quiz" />
@@ -105,7 +106,7 @@ export default function MyLobbies() {
             )}
             {myVotes.length > 0 && (
               <section>
-                <h2 className="mb-4 text-lg font-semibold text-white">Oylama Lobileri ({myVotes.length})</h2>
+                <h2 className="mb-4 text-lg font-semibold text-white">{t('myLobbies.voteLobbies')} ({myVotes.length})</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {myVotes.map((addr) => (
                     <LobbyCard key={addr} address={addr} type="vote" />

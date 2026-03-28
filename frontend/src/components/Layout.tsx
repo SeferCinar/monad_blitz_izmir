@@ -1,10 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import ConnectButton from './ConnectButton'
+import { useT } from '../i18n/LanguageContext'
 
 export default function Layout() {
   const { pathname } = useLocation()
   const { isConnected } = useAccount()
+  const { lang, setLang, t } = useT()
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -14,10 +16,16 @@ export default function Layout() {
             Monad Blitz
           </Link>
           <nav className="flex items-center gap-4">
-            <NavLink to="/" current={pathname}>Lobiler</NavLink>
-            {isConnected && <NavLink to="/my" current={pathname}>Lobilerim</NavLink>}
-            <NavLink to="/create/quiz" current={pathname}>Quiz</NavLink>
-            <NavLink to="/create/vote" current={pathname}>Oylama</NavLink>
+            <NavLink to="/" current={pathname}>{t('nav.lobbies')}</NavLink>
+            {isConnected && <NavLink to="/my" current={pathname}>{t('nav.myLobbies')}</NavLink>}
+            <NavLink to="/create/quiz" current={pathname}>{t('nav.quiz')}</NavLink>
+            <NavLink to="/create/vote" current={pathname}>{t('nav.vote')}</NavLink>
+            <button
+              onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
+              className="rounded-full bg-gray-800/60 px-2.5 py-1 text-xs font-medium text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition-all duration-200"
+            >
+              {lang === 'tr' ? 'EN' : 'TR'}
+            </button>
             <ConnectButton />
           </nav>
         </div>
