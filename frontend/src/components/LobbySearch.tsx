@@ -5,6 +5,7 @@ import { useReadContract } from 'wagmi'
 import { LobbyFactoryABI } from '../abi/LobbyFactory'
 import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
 import type { Address } from 'viem'
+import { loadCid } from '../lib/session'
 
 export default function LobbySearch() {
   const [input, setInput] = useState('')
@@ -40,7 +41,8 @@ export default function LobbySearch() {
     }
 
     if (isQuiz) {
-      navigate(`/quiz/${trimmed}`)
+      const cid = loadCid(trimmed)
+      navigate(cid ? `/quiz/${trimmed}?cid=${cid}` : `/quiz/${trimmed}`)
     } else if (isVote) {
       navigate(`/vote/${trimmed}`)
     } else {

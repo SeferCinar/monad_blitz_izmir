@@ -29,8 +29,14 @@ export default function QuizLobbyPage() {
   const { address: lobbyAddr } = useParams<{ address: string }>()
   const [searchParams] = useSearchParams()
   const lobby = lobbyAddr as Address
-  const ipfsCid = searchParams.get('cid') || ''
+  const cidFromUrl = searchParams.get('cid') || ''
+  const ipfsCid = cidFromUrl || loadCid(lobby)
   const { address: userAddr } = useAuth()
+
+  // URL'den CID geliyorsa localStorage'a kaydet (sonraki girislerde de kullanilsin)
+  useEffect(() => {
+    if (cidFromUrl) saveCid(lobby, cidFromUrl)
+  }, [cidFromUrl, lobby])
 
   useQuizEvents(lobby)
 

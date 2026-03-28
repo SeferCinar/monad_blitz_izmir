@@ -3,6 +3,7 @@ import { useAccount, useReadContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
 import { VoteLobbyABI } from '../abi/VoteLobby'
 import { formatEther, type Address } from 'viem'
+import { loadCid } from '../lib/session'
 
 const PHASE_LABELS_QUIZ = ['Beklemede', 'Aktif', 'Reveal', 'Bitti'] as const
 const PHASE_LABELS_VOTE = ['Beklemede', 'Oylama', 'Reveal', 'Bitti'] as const
@@ -38,7 +39,7 @@ export default function LobbyCard({ address, type, phaseFilter = 'all' }: Props)
 
   return (
     <Link
-      to={`/${type}/${address}`}
+      to={type === 'quiz' ? `/${type}/${address}?cid=${loadCid(address)}` : `/${type}/${address}`}
       className="block rounded-xl border border-gray-800 bg-gray-900 p-5 transition hover:border-purple-600/50 hover:bg-gray-900/80"
     >
       <div className="mb-3 flex items-center justify-between">
