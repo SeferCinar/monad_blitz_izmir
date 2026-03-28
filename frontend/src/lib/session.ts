@@ -52,3 +52,12 @@ export function markRevealed(lobbyAddr: string, questionIndex: number): void {
     localStorage.setItem(answersKey(lobbyAddr), JSON.stringify(all))
   }
 }
+
+// Quiz'in gercek IPFS CID'sini cache'le (URL param'dan gelen herkese)
+export function saveCid(lobbyAddr: string, cid: string): void {
+  localStorage.setItem(`quiz-cid-${lobbyAddr.toLowerCase()}`, cid)
+}
+
+export function loadCid(lobbyAddr: string): string {
+  return localStorage.getItem(`quiz-cid-${lobbyAddr.toLowerCase()}`) ?? ''
+}

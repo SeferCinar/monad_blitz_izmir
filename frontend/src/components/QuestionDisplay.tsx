@@ -39,8 +39,14 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
 
   // Decrypt when key is available
   useEffect(() => {
-    if (!ipfsData || !revealedKey || revealedKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000'
+    if (!revealedKey || revealedKey === ZERO) {
       setDecrypted(null)
+      return
+    }
+    // Key var ama IPFS verisi yok — CID eksik
+    if (!ipfsData) {
+      if (!ipfsCid) setError('Soru yuklenemedi — quiz baglantisindan gir.')
       return
     }
 
@@ -54,7 +60,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
         setDecrypted({ question: parsed.question, options: parsed.options })
       })
       .catch((e) => setError(`Sifre cozulemedi: ${e.message}`))
-  }, [ipfsData, revealedKey, questionIndex])
+  }, [ipfsData, revealedKey, questionIndex, ipfsCid])
 
   if (loading) {
     return <div className="text-sm text-gray-500 animate-pulse">Soru yukleniyor...</div>
@@ -73,6 +79,13 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
   }
 
   if (!decrypted) {
+    if (!ipfsCid) {
+      return (
+        <div className="rounded-lg bg-gray-800/50 p-4 text-center">
+          <p className="text-sm text-red-400">Soru yuklenemedi — quiz olusturucusunun paylasdigi baglantiyi kullan.</p>
+        </div>
+      )
+    }
     return <div className="text-sm text-gray-500 animate-pulse">Sifre cozuluyor...</div>
   }
 

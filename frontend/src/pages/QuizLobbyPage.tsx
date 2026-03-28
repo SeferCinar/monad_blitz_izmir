@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useReadContract, useWriteContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
 import { formatEther, type Address, keccak256, encodePacked } from 'viem'
 import { useState, useEffect, useRef } from 'react'
@@ -12,7 +12,7 @@ import CountdownTimer from '../components/CountdownTimer'
 import MemberList from '../components/MemberList'
 import QuestionDisplay from '../components/QuestionDisplay'
 import { generateRandomBytes32, generateQuizKeys } from '../lib/crypto'
-import { loadQuizSession, saveAnswerCommit, loadAnswerCommits, markRevealed } from '../lib/session'
+import { loadQuizSession, saveAnswerCommit, loadAnswerCommits, markRevealed, saveCid, loadCid } from '../lib/session'
 
 const PHASE_LABELS = ['Beklemede', 'Aktif', 'Reveal', 'Bitti'] as const
 const PHASE_COLORS = ['text-yellow-400', 'text-green-400', 'text-blue-400', 'text-gray-500'] as const
@@ -75,6 +75,13 @@ export default function QuizLobbyPage() {
   const qStartTime = questionStartTime !== undefined ? Number(questionStartTime) : 0
   const displayedQ = curQ > 0 ? curQ - 1 : 0
   const questionDeadline = qStartTime > 0 ? qStartTime + qDuration : undefined
+
+  // CID'yi cache'le — participant'lar URL param olmadan girebilir
+  useEffect(() => {
+    if (ipfsCid) saveCid(lobby, ipfsCid)
+  }, [ipfsCid, lobby])
+
+  const effectiveCid = ipfsCid || loadCid(lobby)
 
   // Daha once commit edilmis sorulari yukle
   useEffect(() => {
@@ -228,7 +235,7 @@ export default function QuizLobbyPage() {
         {phaseIdx === 1 && (
           <div className="space-y-4">
             {/* Soru goster */}
-            <QuestionDisplay lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={ipfsCid} />
+            <QuestionDisplay lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={effectiveCid} />
 
             {/* Owner: sonraki soruya gec */}
             {isOwner && (
@@ -260,7 +267,7 @@ export default function QuizLobbyPage() {
                       <p className="text-xs text-gray-500 mt-1">Siradaki soruyu bekle...</p>
                     </div>
                   ) : (
-                    <AnswerButtons onAnswer={handleAnswerClick} loading={loading} lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={ipfsCid} />
+                    <AnswerButtons onAnswer={handleAnswerClick} loading={loading} lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={effectiveCid} />
                   )}
                 </div>
               </WalletGuard>
