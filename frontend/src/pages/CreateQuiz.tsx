@@ -29,6 +29,7 @@ export default function CreateQuiz() {
 
   // Generated
   const [masterKey, setMasterKey] = useState('')
+  const [ipfsCid, setIpfsCid] = useState('')
   const [deployStatus, setDeployStatus] = useState('')
   const [error, setError] = useState('')
 
@@ -37,7 +38,7 @@ export default function CreateQuiz() {
 
   if (receipt?.logs?.[0]?.topics?.[1]) {
     const lobbyAddr = ('0x' + receipt.logs[0].topics[1]!.slice(26)) as Address
-    navigate(`/quiz/${lobbyAddr}`)
+    navigate(`/quiz/${lobbyAddr}?cid=${ipfsCid}`)
   }
 
   const addQuestion = () => {
@@ -124,6 +125,7 @@ export default function CreateQuiz() {
         questions: encryptedQuestions,
       }
       const cid = await uploadToIpfs(ipfsPayload)
+      setIpfsCid(cid)
       const cidBytes32 = cidToBytes32(cid)
 
       // 6. Factory'ye deploy

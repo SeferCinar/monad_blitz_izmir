@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useReadContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
 import { formatEther, type Address, keccak256, encodePacked } from 'viem'
@@ -18,7 +18,9 @@ const PHASE_COLORS = ['text-yellow-400', 'text-green-400', 'text-blue-400', 'tex
 
 export default function QuizLobbyPage() {
   const { address: lobbyAddr } = useParams<{ address: string }>()
+  const [searchParams] = useSearchParams()
   const lobby = lobbyAddr as Address
+  const ipfsCid = searchParams.get('cid') || ''
   const { address: userAddr } = useAuth()
 
   // Event dinleme — real-time guncelleme
@@ -175,7 +177,7 @@ export default function QuizLobbyPage() {
         {phaseIdx === 1 && (
           <div className="space-y-4">
             {/* Question display */}
-            <QuestionDisplay lobbyAddress={lobby} questionIndex={curQ > 0 ? curQ - 1 : 0} />
+            <QuestionDisplay lobbyAddress={lobby} questionIndex={curQ > 0 ? curQ - 1 : 0} ipfsCid={ipfsCid} />
 
             {/* Reveal Key */}
             <WalletGuard fallbackMessage="Soru anahtari acmak icin cuzdan bagla.">

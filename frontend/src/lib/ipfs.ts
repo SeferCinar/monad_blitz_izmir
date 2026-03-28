@@ -1,3 +1,5 @@
+import { keccak256, toHex } from 'viem'
+
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/'
 
 export type QuizQuestion = {
@@ -19,15 +21,9 @@ export type IpfsQuizPayload = {
 }
 
 /**
- * IPFS'ten quiz payload'unu fetch et
+ * IPFS'ten quiz payload'unu fetch et (CID string olarak gelir, URL param'dan)
  */
-export async function fetchFromIpfs(cidHex: string): Promise<IpfsQuizPayload> {
-  // bytes32 CID'yi string'e cevir (null byte'lari sil)
-  const cidBytes = cidHex.startsWith('0x') ? cidHex.slice(2) : cidHex
-  const cid = new TextDecoder().decode(
-    Uint8Array.from(cidBytes.match(/.{2}/g)!.map((b) => parseInt(b, 16)).filter((b) => b !== 0))
-  )
-
+export async function fetchFromIpfs(cid: string): Promise<IpfsQuizPayload> {
   const res = await fetch(`${IPFS_GATEWAY}${cid}`)
   if (!res.ok) throw new Error(`IPFS fetch basarisiz: ${res.status}`)
   return res.json()
@@ -64,12 +60,9 @@ export async function uploadToIpfs(
 }
 
 /**
- * CID string'i bytes32 hex'e cevir (kontrat icin)
+ * CID'yi keccak256 ile hash'le — on-chain commitment olarak kullanilir.
+ * Gercek CID, URL parametresinde tasinir.
  */
 export function cidToBytes32(cid: string): `0x${string}` {
-  const bytes = new TextEncoder().encode(cid)
-  if (bytes.length > 32) throw new Error('CID 32 byte\'a sigmaz, kisa CIDv0 kullan')
-  const padded = new Uint8Array(32)
-  padded.set(bytes)
-  return `0x${Array.from(padded).map((b) => b.toString(16).padStart(2, '0')).join('')}`
+  return keccak256(toHex(cid))
 }

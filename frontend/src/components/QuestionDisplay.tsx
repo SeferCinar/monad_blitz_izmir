@@ -8,6 +8,7 @@ import type { Address } from 'viem'
 type Props = {
   lobbyAddress: Address
   questionIndex: number
+  ipfsCid?: string
   masterKeyHex?: string
 }
 
@@ -16,15 +17,11 @@ type DecryptedQuestion = {
   options: string[]
 }
 
-export default function QuestionDisplay({ lobbyAddress, questionIndex, masterKeyHex }: Props) {
+export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, masterKeyHex }: Props) {
   const [ipfsData, setIpfsData] = useState<IpfsQuizPayload | null>(null)
   const [decrypted, setDecrypted] = useState<DecryptedQuestion | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const { data: ipfsCID } = useReadContract({
-    address: lobbyAddress, abi: QuizLobbyABI, functionName: 'ipfsCID',
-  })
 
   const { data: revealedKey } = useReadContract({
     address: lobbyAddress, abi: QuizLobbyABI, functionName: 'revealedKeys',
@@ -33,13 +30,13 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, masterKey
 
   // IPFS fetch
   useEffect(() => {
-    if (!ipfsCID || ipfsCID === '0x0000000000000000000000000000000000000000000000000000000000000000') return
+    if (!ipfsCid) return
     setLoading(true)
-    fetchFromIpfs(ipfsCID)
+    fetchFromIpfs(ipfsCid)
       .then(setIpfsData)
       .catch((e) => setError(`IPFS yuklenemedi: ${e.message}`))
       .finally(() => setLoading(false))
-  }, [ipfsCID])
+  }, [ipfsCid])
 
   // Decrypt when key is available
   useEffect(() => {
