@@ -1,6 +1,6 @@
 import bs58 from 'bs58'
 
-const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/'
+const IPFS_GATEWAY = 'https://orange-obedient-jaguar-820.mypinata.cloud/ipfs/'
 
 export type QuizQuestion = {
   index: number
