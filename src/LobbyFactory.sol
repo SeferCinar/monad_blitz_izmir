@@ -37,6 +37,7 @@ contract LobbyFactory is Ownable {
     }
 
     function createQuizLobby(
+        string calldata _name,
         uint256 _questionCount,
         uint256 _questionDuration,
         uint256 _revealWindow,
@@ -44,6 +45,7 @@ contract LobbyFactory is Ownable {
         bytes32 _ipfsCID
     ) external payable returns (address lobby) {
         require(msg.value >= minStake, "Insufficient stake");
+        require(bytes(_name).length > 0, "Empty name");
         require(_questionCount > 0, "Zero questions");
         require(_keyCommits.length == _questionCount, "Commits length mismatch");
         require(_questionDuration > 0, "Zero duration");
@@ -52,6 +54,7 @@ contract LobbyFactory is Ownable {
         lobby = address(
             new QuizLobby{value: msg.value}(
                 msg.sender,
+                _name,
                 _questionCount,
                 _questionDuration,
                 _revealWindow,
@@ -68,11 +71,13 @@ contract LobbyFactory is Ownable {
     }
 
     function createVoteLobby(
+        string calldata _name,
         uint256 _optionCount,
         uint256 _voteDuration,
         uint256 _revealWindow
     ) external payable returns (address lobby) {
         require(msg.value >= minStake, "Insufficient stake");
+        require(bytes(_name).length > 0, "Empty name");
         require(_optionCount > 1, "Need at least 2 options");
         require(_voteDuration > 0, "Zero duration");
         require(_revealWindow > 0, "Zero reveal window");
@@ -80,6 +85,7 @@ contract LobbyFactory is Ownable {
         lobby = address(
             new VoteLobby{value: msg.value}(
                 msg.sender,
+                _name,
                 _optionCount,
                 _voteDuration,
                 _revealWindow

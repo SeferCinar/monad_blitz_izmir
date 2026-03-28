@@ -9,6 +9,7 @@ contract VoteLobby {
     enum Phase { PENDING, VOTING, REVEAL, FINISHED }
 
     address public owner;
+    string public name;
     uint256 public optionCount;
     uint256 public voteDuration;
     uint256 public revealWindow;
@@ -46,11 +47,13 @@ contract VoteLobby {
 
     constructor(
         address _owner,
+        string memory _name,
         uint256 _optionCount,
         uint256 _voteDuration,
         uint256 _revealWindow
     ) payable {
         owner = _owner;
+        name = _name;
         optionCount = _optionCount;
         voteDuration = _voteDuration;
         revealWindow = _revealWindow;

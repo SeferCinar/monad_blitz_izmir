@@ -6,7 +6,7 @@ import { LobbyFactoryABI } from '../abi/LobbyFactory'
 import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
 import { generateRandomBytes32, generateQuizKeys } from '../lib/crypto'
 import { uploadToIpfs, cidToBytes32, type IpfsQuizPayload } from '../lib/ipfs'
-import { saveQuizSession } from '../lib/session'
+import { saveQuizSession, saveLobbyName } from '../lib/session'
 
 type QuestionInput = {
   question: string
@@ -18,6 +18,7 @@ export default function CreateQuiz() {
   const navigate = useNavigate()
   const [step, setStep] = useState<'questions' | 'config' | 'deploying'>('questions')
 
+  const [lobbyName, setLobbyName] = useState('')
   const [questions, setQuestions] = useState<QuestionInput[]>([
     { question: '', options: ['', '', '', ''], correctAnswer: '' },
   ])
@@ -41,6 +42,7 @@ export default function CreateQuiz() {
     const session = pendingSession.current
     pendingSession.current = null
     saveQuizSession(lobbyAddr, session)
+    if (lobbyName.trim()) saveLobbyName(lobbyAddr, lobbyName.trim())
     navigate(`/quiz/${lobbyAddr}?cid=${session.cid}`)
   }, [receipt, navigate])
 
@@ -66,6 +68,7 @@ export default function CreateQuiz() {
   }
 
   const validateQuestions = (): string | null => {
+    if (!lobbyName.trim()) return 'Quiz icin bir isim gir.'
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]
       if (!q.question.trim()) return `Soru ${i + 1}: Soru metni bos.`
@@ -104,6 +107,7 @@ export default function CreateQuiz() {
       setDeployStatus("IPFS'e yukleniyor...")
       const ipfsPayload: IpfsQuizPayload = {
         quizId: masterKey.slice(0, 18),
+        name: lobbyName.trim(),
         questions: questions.map((q, i) => ({
           index: i,
           question: q.question,
@@ -127,6 +131,7 @@ export default function CreateQuiz() {
         abi: LobbyFactoryABI,
         functionName: 'createQuizLobby',
         args: [
+          lobbyName.trim(),
           BigInt(questions.length),
           BigInt(questionDuration),
           BigInt(revealWindow),
@@ -168,6 +173,16 @@ export default function CreateQuiz() {
       {/* Step 1: Questions */}
       {step === 'questions' && (
         <div className="space-y-4">
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+            <label className="mb-1 block text-sm text-gray-400">Quiz Ismi</label>
+            <input
+              type="text" value={lobbyName}
+              onChange={(e) => setLobbyName(e.target.value)}
+              placeholder="ornek: Turkiye Cografya Quiz'i"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+            />
+          </div>
+
           {questions.map((q, qIdx) => (
             <div key={qIdx} className="rounded-xl border border-gray-800 bg-gray-900 p-5">
               <div className="mb-3 flex items-center justify-between">

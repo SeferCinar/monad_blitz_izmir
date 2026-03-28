@@ -38,7 +38,7 @@ contract LobbyFactoryTest is Test {
 
         vm.prank(alice);
         address lobby = factory.createQuizLobby{value: stakeAmount}(
-            questionCount, 300, 600, commits, cid
+            "Test Quiz", questionCount, 300, 600, commits, cid
         );
 
         assertTrue(lobby != address(0));
@@ -63,7 +63,7 @@ contract LobbyFactoryTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("Insufficient stake");
-        factory.createQuizLobby{value: 0.01 ether}(3, 300, 600, commits, keccak256("cid"));
+        factory.createQuizLobby{value: 0.01 ether}("Test", 3, 300, 600, commits, keccak256("cid"));
     }
 
     function test_CreateQuizLobby_CommitsLengthMismatch() public {
@@ -71,7 +71,7 @@ contract LobbyFactoryTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("Commits length mismatch");
-        factory.createQuizLobby{value: 1 ether}(5, 300, 600, commits, keccak256("cid"));
+        factory.createQuizLobby{value: 1 ether}("Test", 5, 300, 600, commits, keccak256("cid"));
     }
 
     function test_CreateQuizLobby_ZeroQuestions() public {
@@ -79,7 +79,7 @@ contract LobbyFactoryTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("Zero questions");
-        factory.createQuizLobby{value: 1 ether}(0, 300, 600, commits, keccak256("cid"));
+        factory.createQuizLobby{value: 1 ether}("Test", 0, 300, 600, commits, keccak256("cid"));
     }
 
     function test_QuizLobbyCreated_Event() public {
@@ -91,7 +91,7 @@ contract LobbyFactoryTest is Test {
         vm.prank(alice);
         vm.expectEmit(false, true, false, true);
         emit LobbyFactory.QuizLobbyCreated(address(0), alice, questionCount, stakeAmount, cid);
-        factory.createQuizLobby{value: stakeAmount}(questionCount, 300, 600, commits, cid);
+        factory.createQuizLobby{value: stakeAmount}("Event Quiz", questionCount, 300, 600, commits, cid);
     }
 
     // --- Vote Lobby Tests ---
@@ -100,7 +100,7 @@ contract LobbyFactoryTest is Test {
         uint256 stakeAmount = 0.5 ether;
 
         vm.prank(bob);
-        address lobby = factory.createVoteLobby{value: stakeAmount}(4, 3600, 600);
+        address lobby = factory.createVoteLobby{value: stakeAmount}("Test Vote", 4, 3600, 600);
 
         assertTrue(lobby != address(0));
         assertEq(factory.voteLobbyCount(), 1);
@@ -121,7 +121,7 @@ contract LobbyFactoryTest is Test {
     function test_CreateVoteLobby_SingleOption() public {
         vm.prank(alice);
         vm.expectRevert("Need at least 2 options");
-        factory.createVoteLobby{value: 1 ether}(1, 3600, 600);
+        factory.createVoteLobby{value: 1 ether}("Test", 1, 3600, 600);
     }
 
     // --- MinStake Tests ---
@@ -150,14 +150,14 @@ contract LobbyFactoryTest is Test {
         bytes32 cid = keccak256("cid");
 
         vm.startPrank(alice);
-        factory.createQuizLobby{value: 0.1 ether}(3, 300, 600, commits3, cid);
-        factory.createQuizLobby{value: 0.2 ether}(5, 300, 600, commits5, cid);
-        factory.createVoteLobby{value: 0.1 ether}(3, 3600, 600);
+        factory.createQuizLobby{value: 0.1 ether}("Quiz 1", 3, 300, 600, commits3, cid);
+        factory.createQuizLobby{value: 0.2 ether}("Quiz 2", 5, 300, 600, commits5, cid);
+        factory.createVoteLobby{value: 0.1 ether}("Vote 1", 3, 3600, 600);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        factory.createQuizLobby{value: 0.5 ether}(3, 300, 600, commits3, cid);
-        factory.createVoteLobby{value: 0.3 ether}(2, 1800, 300);
+        factory.createQuizLobby{value: 0.5 ether}("Quiz 3", 3, 300, 600, commits3, cid);
+        factory.createVoteLobby{value: 0.3 ether}("Vote 2", 2, 1800, 300);
         vm.stopPrank();
 
         assertEq(factory.quizLobbyCount(), 3);

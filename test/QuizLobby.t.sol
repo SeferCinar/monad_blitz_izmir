@@ -41,7 +41,7 @@ contract QuizLobbyTest is Test {
 
         vm.prank(owner);
         address lobbyAddr = factory.createQuizLobby{value: STAKE}(
-            QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, ipfsCID
+            "Test Quiz", QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, ipfsCID
         );
         quiz = QuizLobby(lobbyAddr);
     }

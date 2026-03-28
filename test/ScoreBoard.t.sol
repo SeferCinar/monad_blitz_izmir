@@ -41,7 +41,7 @@ contract ScoreBoardTest is Test {
 
         vm.prank(owner);
         address lobbyAddr = factory.createQuizLobby{value: STAKE}(
-            QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, keccak256("cid")
+            "Test Quiz", QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, keccak256("cid")
         );
         quiz = QuizLobby(lobbyAddr);
 
@@ -99,7 +99,7 @@ contract ScoreBoardTest is Test {
         // Bitmemis quiz ile ScoreBoard olustur
         vm.prank(owner);
         address freshLobby = factory.createQuizLobby{value: STAKE}(
-            QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, keccak256("cid2")
+            "Fresh Quiz", QUESTION_COUNT, QUESTION_DURATION, REVEAL_WINDOW, keyCommits, keccak256("cid2")
         );
         ScoreBoard freshBoard = new ScoreBoard(freshLobby);
 

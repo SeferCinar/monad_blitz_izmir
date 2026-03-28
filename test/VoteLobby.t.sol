@@ -29,7 +29,7 @@ contract VoteLobbyTest is Test {
 
         vm.prank(owner);
         address lobbyAddr = factory.createVoteLobby{value: STAKE}(
-            OPTION_COUNT, VOTE_DURATION, REVEAL_WINDOW
+            "Test Vote", OPTION_COUNT, VOTE_DURATION, REVEAL_WINDOW
         );
         vote = VoteLobby(lobbyAddr);
     }

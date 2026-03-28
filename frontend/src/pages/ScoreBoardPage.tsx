@@ -11,6 +11,14 @@ import { useState, useEffect } from 'react'
 import { keccak256, encodePacked } from 'viem'
 import { loadQuizSession } from '../lib/session'
 
+const RANK_STYLES = [
+  'bg-yellow-900/20 border border-yellow-700/30',
+  'bg-gray-800/60 border border-gray-700/30',
+  'bg-orange-900/15 border border-orange-800/20',
+]
+const RANK_COLORS = ['text-yellow-400', 'text-gray-400', 'text-orange-400']
+const RANK_EMOJI = ['🥇', '🥈', '🥉']
+
 export default function ScoreBoardPage() {
   const { address: boardAddr } = useParams<{ address: string }>()
   const board = boardAddr as Address
@@ -21,7 +29,6 @@ export default function ScoreBoardPage() {
   const { data: answersSubmitted } = useReadContract({ address: board, abi: ScoreBoardABI, functionName: 'answersSubmitted' })
   const { data: scored } = useReadContract({ address: board, abi: ScoreBoardABI, functionName: 'scored' })
 
-  // Quiz lobby details
   const quizLobby = quizLobbyAddr as Address | undefined
   const { data: questionCount } = useReadContract({
     address: quizLobby, abi: QuizLobbyABI, functionName: 'questionCount',
@@ -32,7 +39,6 @@ export default function ScoreBoardPage() {
     query: { enabled: !!quizLobby },
   })
 
-  // Fetch members
   const memCount = memberCount !== undefined ? Number(memberCount) : 0
   const { data: membersData } = useReadContracts({
     contracts: Array.from({ length: memCount }, (_, i) => ({
@@ -46,7 +52,6 @@ export default function ScoreBoardPage() {
 
   const members = membersData?.filter((r) => r.status === 'success').map((r) => r.result as Address) ?? []
 
-  // Fetch scores (if scored)
   const { data: scoresData } = useReadContracts({
     contracts: members.map((addr) => ({
       address: board,
@@ -59,7 +64,6 @@ export default function ScoreBoardPage() {
 
   const { writeContract, loading, toast, dismissToast } = useTxFeedback()
 
-  // Dogru cevaplar: once localStorage'dan yukle (owner quiz'i olusturmussa), yoksa manuel girilebilir
   const [correctAnswers, setCorrectAnswers] = useState('')
 
   useEffect(() => {
@@ -90,7 +94,6 @@ export default function ScoreBoardPage() {
     writeContract({ address: board, abi: ScoreBoardABI, functionName: 'calculateScores' })
   }
 
-  // Leaderboard
   const leaderboard = members
     .map((addr, i) => ({
       address: addr,
@@ -98,26 +101,31 @@ export default function ScoreBoardPage() {
     }))
     .sort((a, b) => b.score - a.score)
 
-  return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-white">Skor Tablosu</h1>
+  const statusLabel = scored ? 'Skorlar Hazir' : answersSubmitted ? 'Hesaplanmayi Bekliyor' : 'Cevap Bekleniyor'
+  const statusColor = scored ? 'text-green-400 bg-green-900/20' : answersSubmitted ? 'text-blue-400 bg-blue-900/20' : 'text-yellow-400 bg-yellow-900/20'
 
-      <div className="mb-6 grid gap-3 rounded-xl border border-gray-800 bg-gray-900 p-5 sm:grid-cols-3">
-        <Info label="ScoreBoard Adresi" value={board} mono />
-        <Info label="Quiz Lobisi" value={quizLobby ?? '...'} mono />
-        <Info label="Owner" value={owner ? `${(owner as string).slice(0, 8)}...${(owner as string).slice(-6)}` : '...'} mono />
-        <Info label="Soru Sayisi" value={qCount.toString()} />
-        <Info label="Katilimci" value={memCount.toString()} />
-        <Info label="Durum" value={scored ? 'Skorlar Hesaplandi' : answersSubmitted ? 'Cevaplar Girildi' : 'Cevap Bekleniyor'} />
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-6 flex items-center gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-white">Skor Tablosu</h1>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor}`}>
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="mb-6 flex items-center gap-4 text-sm text-gray-400">
+        <span>{qCount} soru</span>
+        <span className="text-gray-700">|</span>
+        <span>{memCount} katilimci</span>
       </div>
 
       <div className="space-y-4">
-        {/* Step 1: Submit correct answers (owner only) */}
+        {/* Owner: cevap girisi */}
         {!answersSubmitted && isOwner && (
           <WalletGuard>
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-fade-in-up">
               <h2 className="mb-3 text-lg font-semibold text-white">Dogru Cevaplari Gir</h2>
-              <p className="mb-2 text-sm text-gray-400">
+              <p className="mb-3 text-sm text-gray-400">
                 Her satira bir cevap yaz (soru sirasi ile ayni sirada). Toplam {qCount} cevap gerekli.
               </p>
               <textarea
@@ -125,12 +133,12 @@ export default function ScoreBoardPage() {
                 onChange={(e) => setCorrectAnswers(e.target.value)}
                 rows={Math.max(4, qCount)}
                 placeholder={"A\nB\nC\nA"}
-                className="mb-3 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 font-mono placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+                className="mb-3 w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-gray-200 font-mono placeholder-gray-600 focus:border-purple-500 focus:outline-none transition"
               />
               <button
                 onClick={handleSubmitAnswers}
                 disabled={loading}
-                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50"
+                className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-500/20 disabled:opacity-50 transition-all duration-200"
               >
                 {loading ? 'Isleniyor...' : 'Cevaplari Gonder'}
               </button>
@@ -138,18 +146,18 @@ export default function ScoreBoardPage() {
           </WalletGuard>
         )}
 
-        {/* Step 2: Calculate scores */}
+        {/* Skor hesapla */}
         {answersSubmitted && !scored && (
           <WalletGuard>
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 flex items-center justify-between">
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 flex items-center justify-between animate-fade-in-up">
               <div>
                 <h2 className="text-lg font-semibold text-white">Skorlari Hesapla</h2>
-                <p className="text-sm text-gray-400">Dogru cevaplar girildi. Skorlama calistir.</p>
+                <p className="text-sm text-gray-400">Cevaplar girildi, skorlama calistir.</p>
               </div>
               <button
                 onClick={handleCalculateScores}
                 disabled={loading}
-                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50"
+                className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-500/20 disabled:opacity-50 transition-all duration-200"
               >
                 {loading ? 'Isleniyor...' : 'Hesapla'}
               </button>
@@ -157,58 +165,46 @@ export default function ScoreBoardPage() {
           </WalletGuard>
         )}
 
-        {/* Step 3: Leaderboard */}
+        {/* Leaderboard */}
         {scored && (
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-            <h2 className="mb-4 text-lg font-semibold text-white">Siralama</h2>
-            <div className="space-y-2">
-              {leaderboard.map((entry, rank) => (
-                <div
-                  key={entry.address}
-                  className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${
-                    rank === 0 ? 'bg-yellow-900/20 border border-yellow-800/30' :
-                    rank === 1 ? 'bg-gray-800/80' :
-                    rank === 2 ? 'bg-orange-900/10 border border-orange-800/20' :
-                    'bg-gray-800/40'
-                  }`}
-                >
-                  <span className={`w-8 text-lg font-bold ${
-                    rank === 0 ? 'text-yellow-400' : rank === 1 ? 'text-gray-400' : rank === 2 ? 'text-orange-400' : 'text-gray-600'
-                  }`}>
-                    #{rank + 1}
-                  </span>
-                  <span className="flex-1 font-mono text-sm text-gray-300">
-                    {entry.address.slice(0, 8)}...{entry.address.slice(-6)}
-                    {entry.address.toLowerCase() === userAddr?.toLowerCase() && (
-                      <span className="ml-2 text-purple-400">(sen)</span>
-                    )}
-                  </span>
-                  <span className="text-lg font-bold text-white">
-                    {entry.score}/{qCount}
-                  </span>
-                </div>
-              ))}
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-scale-in">
+            <h2 className="mb-5 text-lg font-semibold text-white">Siralama</h2>
+            <div className="space-y-2 stagger-children">
+              {leaderboard.map((entry, rank) => {
+                const isMe = entry.address.toLowerCase() === userAddr?.toLowerCase()
+                return (
+                  <div
+                    key={entry.address}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
+                      rank < 3 ? RANK_STYLES[rank] : 'bg-gray-800/30'
+                    } ${isMe ? 'ring-1 ring-purple-500/50' : ''}`}
+                  >
+                    <span className={`w-8 text-lg font-bold ${rank < 3 ? RANK_COLORS[rank] : 'text-gray-600'}`}>
+                      {rank < 3 ? RANK_EMOJI[rank] : `#${rank + 1}`}
+                    </span>
+                    <span className="flex-1 font-mono text-sm text-gray-300">
+                      {entry.address.slice(0, 6)}...{entry.address.slice(-4)}
+                      {isMe && <span className="ml-2 text-purple-400 font-sans">(sen)</span>}
+                    </span>
+                    <span className="text-lg font-bold text-white">
+                      {entry.score}<span className="text-gray-500 text-sm font-normal">/{qCount}</span>
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
 
         {!answersSubmitted && !isOwner && (
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
-            <p className="text-gray-500">Owner henuz dogru cevaplari girmedi.</p>
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-10 text-center animate-fade-in">
+            <div className="text-4xl mb-3">⏳</div>
+            <p className="text-gray-400">Skorlar henuz hazir degil.</p>
           </div>
         )}
       </div>
 
       <TxToast toast={toast} onDismiss={dismissToast} />
-    </div>
-  )
-}
-
-function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={`text-sm text-gray-200 ${mono ? 'font-mono break-all' : ''}`}>{value}</p>
     </div>
   )
 }

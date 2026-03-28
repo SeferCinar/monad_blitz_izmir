@@ -5,6 +5,7 @@ contract QuizLobby {
     enum Phase { PENDING, ACTIVE, REVEAL, FINISHED }
 
     address public owner;
+    string public name;
     uint256 public questionCount;
     uint256 public questionDuration;
     uint256 public revealWindow;
@@ -45,6 +46,7 @@ contract QuizLobby {
 
     constructor(
         address _owner,
+        string memory _name,
         uint256 _questionCount,
         uint256 _questionDuration,
         uint256 _revealWindow,
@@ -52,6 +54,7 @@ contract QuizLobby {
         bytes32 _ipfsCID
     ) payable {
         owner = _owner;
+        name = _name;
         questionCount = _questionCount;
         questionDuration = _questionDuration;
         revealWindow = _revealWindow;

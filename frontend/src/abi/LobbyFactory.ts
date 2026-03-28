@@ -15,6 +15,11 @@ export const LobbyFactoryABI = [
     "name": "createQuizLobby",
     "inputs": [
       {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
         "name": "_questionCount",
         "type": "uint256",
         "internalType": "uint256"
@@ -53,6 +58,11 @@ export const LobbyFactoryABI = [
     "type": "function",
     "name": "createVoteLobby",
     "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
       {
         "name": "_optionCount",
         "type": "uint256",
@@ -386,4 +396,4 @@ export const LobbyFactoryABI = [
       }
     ]
   }
-] as const;
+] as const

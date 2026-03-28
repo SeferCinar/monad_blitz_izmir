@@ -17,6 +17,7 @@ export type PlaintextQuestion = {
 
 export type IpfsQuizPayload = {
   quizId: string
+  name?: string
   questions: PlaintextQuestion[]
 }
 

@@ -8,6 +8,11 @@ export const QuizLobbyABI = [
         "internalType": "address"
       },
       {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
         "name": "_questionCount",
         "type": "uint256",
         "internalType": "uint256"
@@ -214,6 +219,19 @@ export const QuizLobbyABI = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "name",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
@@ -540,4 +558,4 @@ export const QuizLobbyABI = [
     ],
     "anonymous": false
   }
-] as const;
+] as const

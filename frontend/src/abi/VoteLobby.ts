@@ -8,6 +8,11 @@ export const VoteLobbyABI = [
         "internalType": "address"
       },
       {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
         "name": "_optionCount",
         "type": "uint256",
         "internalType": "uint256"
@@ -163,6 +168,19 @@ export const VoteLobbyABI = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "name",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
@@ -444,4 +462,4 @@ export const VoteLobbyABI = [
     ],
     "anonymous": false
   }
-] as const;
+] as const

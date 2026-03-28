@@ -16,13 +16,14 @@ import { loadQuizSession, saveAnswerCommit, loadAnswerCommits, markRevealed, sav
 
 const PHASE_LABELS = ['Beklemede', 'Aktif', 'Reveal', 'Bitti'] as const
 const PHASE_COLORS = ['text-yellow-400', 'text-green-400', 'text-blue-400', 'text-gray-500'] as const
+const PHASE_BG = ['bg-yellow-900/20', 'bg-green-900/20', 'bg-blue-900/20', 'bg-gray-800/50'] as const
 
 // Kahoot cevap buton renkleri ve sekilleri
 const ANSWER_STYLES = [
-  { bg: 'bg-red-600 hover:bg-red-500',    shape: '▲', border: 'border-red-400' },
-  { bg: 'bg-blue-600 hover:bg-blue-500',  shape: '◆', border: 'border-blue-400' },
-  { bg: 'bg-yellow-500 hover:bg-yellow-400', shape: '●', border: 'border-yellow-300' },
-  { bg: 'bg-green-600 hover:bg-green-500', shape: '■', border: 'border-green-400' },
+  { bg: 'bg-red-600', hover: 'hover:bg-red-500 hover:shadow-red-500/20 hover:shadow-lg', shape: '▲', selected: 'ring-2 ring-red-300 bg-red-500' },
+  { bg: 'bg-blue-600', hover: 'hover:bg-blue-500 hover:shadow-blue-500/20 hover:shadow-lg', shape: '◆', selected: 'ring-2 ring-blue-300 bg-blue-500' },
+  { bg: 'bg-yellow-500', hover: 'hover:bg-yellow-400 hover:shadow-yellow-500/20 hover:shadow-lg', shape: '●', selected: 'ring-2 ring-yellow-300 bg-yellow-400' },
+  { bg: 'bg-green-600', hover: 'hover:bg-green-500 hover:shadow-green-500/20 hover:shadow-lg', shape: '■', selected: 'ring-2 ring-green-300 bg-green-500' },
 ]
 
 export default function QuizLobbyPage() {
@@ -33,13 +34,13 @@ export default function QuizLobbyPage() {
   const ipfsCid = cidFromUrl || loadCid(lobby)
   const { address: userAddr } = useAuth()
 
-  // URL'den CID geliyorsa localStorage'a kaydet (sonraki girislerde de kullanilsin)
   useEffect(() => {
     if (cidFromUrl) saveCid(lobby, cidFromUrl)
   }, [cidFromUrl, lobby])
 
   useQuizEvents(lobby)
 
+  const { data: lobbyName }       = useReadContract({ address: lobby, abi: QuizLobbyABI, functionName: 'name' })
   const { data: owner }           = useReadContract({ address: lobby, abi: QuizLobbyABI, functionName: 'owner' })
   const { data: phase }           = useReadContract({ address: lobby, abi: QuizLobbyABI, functionName: 'phase' })
   const { data: questionCount }   = useReadContract({ address: lobby, abi: QuizLobbyABI, functionName: 'questionCount' })
@@ -62,14 +63,13 @@ export default function QuizLobbyPage() {
     query: { enabled: phase !== undefined && Number(phase) === 1 },
   })
 
-  // Temel tx feedback (join, start, finish, slash)
   const { writeContract, loading, toast, dismissToast } = useTxFeedback()
-
-  // Auto-reveal icin ayri writeContract (sirayla tx gonderebilmek icin)
   const { writeContractAsync } = useWriteContract()
 
   const [showMembers, setShowMembers] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
   const [committedQuestions, setCommittedQuestions] = useState<Set<number>>(new Set())
+  const [optimisticAnswer, setOptimisticAnswer] = useState<string | null>(null)
   const [revealProgress, setRevealProgress] = useState<{ done: number; total: number } | null>(null)
   const autoRevealStarted = useRef(false)
 
@@ -82,20 +82,24 @@ export default function QuizLobbyPage() {
   const displayedQ = curQ > 0 ? curQ - 1 : 0
   const questionDeadline = qStartTime > 0 ? qStartTime + qDuration : undefined
 
-  // CID'yi cache'le — participant'lar URL param olmadan girebilir
   useEffect(() => {
     if (ipfsCid) saveCid(lobby, ipfsCid)
   }, [ipfsCid, lobby])
 
   const effectiveCid = ipfsCid || loadCid(lobby)
 
-  // Daha once commit edilmis sorulari yukle
+  // Onceden commit edilmis sorulari yukle
   useEffect(() => {
     const commits = loadAnswerCommits(lobby)
     setCommittedQuestions(new Set(Object.keys(commits).map(Number)))
   }, [lobby])
 
-  // REVEAL phase'e gecinince cevaplari otomatik gonder
+  // Soru degisince optimistic state'i temizle
+  useEffect(() => {
+    setOptimisticAnswer(null)
+  }, [displayedQ])
+
+  // REVEAL phase — otomatik cevap gonder
   useEffect(() => {
     if (phaseIdx !== 2 || !isMember || !userAddr || autoRevealStarted.current) return
     const commits = loadAnswerCommits(lobby)
@@ -116,13 +120,11 @@ export default function QuizLobbyPage() {
             functionName: 'revealAnswer',
             args: [BigInt(qIdx), commit.answer, commit.salt as `0x${string}`],
           })
-          // Tx gonderildi, onay beklemeye gerek yok — bir sonrakine gec
           void hash
           markRevealed(lobby, qIdx)
           done++
           setRevealProgress({ done, total: pending.length })
         } catch {
-          // Zaten reveal edilmisse veya basarisizsa atla
           done++
           setRevealProgress({ done, total: pending.length })
         }
@@ -130,14 +132,12 @@ export default function QuizLobbyPage() {
     })()
   }, [phaseIdx, isMember, userAddr, lobby, writeContractAsync])
 
-  // --- Handler'lar ---
-
+  // --- Handlers ---
   const handleJoin  = () => writeContract({ address: lobby, abi: QuizLobbyABI, functionName: 'joinLobby' })
   const handleStart = () => writeContract({ address: lobby, abi: QuizLobbyABI, functionName: 'startQuiz' })
   const handleFinish = () => writeContract({ address: lobby, abi: QuizLobbyABI, functionName: 'finishQuiz' })
   const handleClaimSlash = () => writeContract({ address: lobby, abi: QuizLobbyABI, functionName: 'claimSlashedStake' })
 
-  // Owner: sıradaki sorunun anahtarını otomatik derive edip reveal et
   const handleRevealNextKey = async () => {
     const session = loadQuizSession(lobby)
     if (!session?.masterKey) return
@@ -152,9 +152,10 @@ export default function QuizLobbyPage() {
     })
   }
 
-  // Participant: secenege tiklayinca otomatik salt uret ve commit et
   const handleAnswerClick = (option: string) => {
-    if (committedQuestions.has(displayedQ)) return  // zaten commit edildi
+    if (committedQuestions.has(displayedQ)) return
+    // Optimistic UI — hemen göster
+    setOptimisticAnswer(option)
     const salt = generateRandomBytes32()
     const commitment = keccak256(encodePacked(['string', 'bytes32'], [option, salt as `0x${string}`]))
     saveAnswerCommit(lobby, displayedQ, { answer: option, salt })
@@ -168,69 +169,96 @@ export default function QuizLobbyPage() {
   }
 
   const hasCommitted = committedQuestions.has(displayedQ)
-  const savedAnswer  = loadAnswerCommits(lobby)[displayedQ]?.answer
+  const savedAnswer  = optimisticAnswer || loadAnswerCommits(lobby)[displayedQ]?.answer
 
   return (
-    <div>
+    <div className="animate-fade-in">
+      {/* Header */}
       <div className="mb-6 flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">Quiz Lobisi</h1>
-        <span className={`rounded-md px-2 py-0.5 text-sm font-medium ${PHASE_COLORS[phaseIdx]}`}>
+        <h1 className="text-2xl font-bold text-white">{(lobbyName as string) || 'Quiz'}</h1>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${PHASE_BG[phaseIdx]} ${PHASE_COLORS[phaseIdx]}`}>
           {PHASE_LABELS[phaseIdx]}
         </span>
-        {isOwner && <span className="rounded-md bg-purple-900/50 px-2 py-0.5 text-xs text-purple-300">Owner</span>}
-        {isMember && !isOwner && <span className="rounded-md bg-green-900/50 px-2 py-0.5 text-xs text-green-300">Uye</span>}
-        {phaseIdx === 1 && <CountdownTimer deadline={questionDeadline} label="Soru suresi:" />}
+        {isOwner && <span className="rounded-full bg-purple-900/50 px-3 py-1 text-xs text-purple-300">Yonetici</span>}
+        {isMember && !isOwner && <span className="rounded-full bg-green-900/50 px-3 py-1 text-xs text-green-300">Katilimci</span>}
+      </div>
+
+      {/* Compact info bar */}
+      <div className="mb-6 flex items-center gap-4 flex-wrap text-sm text-gray-400">
+        <span>{memCount} katilimci</span>
+        <span className="text-gray-700">|</span>
+        <span>{qCount} soru</span>
+        {phaseIdx === 1 && (
+          <>
+            <span className="text-gray-700">|</span>
+            <span>Soru {displayedQ + 1}/{qCount}</span>
+            <CountdownTimer deadline={questionDeadline} label="" />
+          </>
+        )}
         {phaseIdx === 2 && revealDeadline !== undefined && Number(revealDeadline) > 0 && (
-          <CountdownTimer deadline={Number(revealDeadline)} label="Reveal suresi:" />
+          <>
+            <span className="text-gray-700">|</span>
+            <CountdownTimer deadline={Number(revealDeadline)} label="Kalan:" />
+          </>
         )}
-      </div>
-
-      {/* Info Grid */}
-      <div className="mb-6 grid gap-3 rounded-xl border border-gray-800 bg-gray-900 p-5 sm:grid-cols-3">
-        <Info label="Adres" value={lobby} mono />
-        <Info label="Owner" value={owner ? `${(owner as string).slice(0, 8)}...${(owner as string).slice(-6)}` : '...'} mono />
-        <Info label="Soru Sayisi" value={qCount > 0 ? String(qCount) : '...'} />
-        <Info label="Aktif Soru" value={`${displayedQ + 1} / ${qCount || '?'}`} />
-        <Info label="Soru Suresi" value={questionDuration !== undefined ? formatDuration(Number(questionDuration)) : '...'} />
-        <Info label="Reveal Penceresi" value={revealWindow !== undefined ? formatDuration(Number(revealWindow)) : '...'} />
-        <Info label="Stake" value={stake !== undefined ? `${formatEther(stake)} MON` : '...'} />
-        <Info label="Uye Sayisi" value={memCount.toString()} />
-      </div>
-
-      {/* Member list toggle */}
-      <div className="mb-4">
-        <button onClick={() => setShowMembers(!showMembers)} className="text-sm text-gray-400 hover:text-gray-200">
-          {showMembers ? 'Uye listesini gizle' : `Uyeleri goster (${memCount})`}
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="ml-auto text-xs text-gray-600 hover:text-gray-400 transition"
+        >
+          {showDetails ? 'Detaylari gizle' : 'Detaylar'}
         </button>
-        {showMembers && memCount > 0 && (
-          <div className="mt-2">
-            <MemberList lobbyAddress={lobby} memberCount={memCount} owner={owner as string} />
-          </div>
-        )}
       </div>
+
+      {/* Expandable details (for power users) */}
+      {showDetails && (
+        <div className="mb-6 grid gap-3 rounded-xl border border-gray-800/50 bg-gray-900/50 p-4 sm:grid-cols-3 animate-fade-in-up text-xs">
+          <Info label="Kontrat" value={`${lobby.slice(0, 6)}...${lobby.slice(-4)}`} mono />
+          <Info label="Soru Suresi" value={questionDuration !== undefined ? formatDuration(Number(questionDuration)) : '...'} />
+          <Info label="Reveal Penceresi" value={revealWindow !== undefined ? formatDuration(Number(revealWindow)) : '...'} />
+          <Info label="Stake" value={stake !== undefined ? `${formatEther(stake)} MON` : '...'} />
+          <Info label="Owner" value={owner ? `${(owner as string).slice(0, 6)}...${(owner as string).slice(-4)}` : '...'} mono />
+          <div>
+            <button onClick={() => setShowMembers(!showMembers)} className="text-gray-500 hover:text-gray-300 transition">
+              {showMembers ? 'Listeyi gizle' : `${memCount} uye`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showDetails && showMembers && memCount > 0 && (
+        <div className="mb-4 animate-fade-in-up">
+          <MemberList lobbyAddress={lobby} memberCount={memCount} owner={owner as string} />
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* PENDING */}
         {phaseIdx === 0 && (
-          <WalletGuard fallbackMessage="Lobiye katilmak veya quiz baslatmak icin cuzdan bagla.">
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-              <h2 className="mb-3 text-lg font-semibold text-white">Islemler</h2>
+          <WalletGuard fallbackMessage="Katilmak icin cuzdan bagla.">
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 animate-fade-in-up">
               {!isMember && !isOwner && (
-                <div className="mb-3">
-                  <p className="mb-2 text-sm text-gray-400">Bu lobiye katilmak ister misin?</p>
-                  <ActionButton onClick={handleJoin} loading={loading}>Lobiye Katil</ActionButton>
+                <div className="text-center">
+                  <div className="mb-4 text-5xl">🎯</div>
+                  <h2 className="mb-2 text-lg font-semibold text-white">Quiz'e Katil</h2>
+                  <p className="mb-4 text-sm text-gray-400">
+                    {memCount > 0 ? `${memCount} kisi katildi` : 'Ilk katilimci sen ol!'}
+                    {stake !== undefined && Number(stake) > 0 && ` · ${formatEther(stake)} MON odullu`}
+                  </p>
+                  <ActionButton onClick={handleJoin} loading={loading} size="lg">Katil</ActionButton>
                 </div>
               )}
               {isMember && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-900/20 border border-green-800/30 px-4 py-2.5">
-                  <div className="h-2 w-2 rounded-full bg-green-400" />
-                  <p className="text-sm text-green-300">Bu lobinin uyesisin. Quiz'in baslamasini bekliyorsun.</p>
+                <div className="text-center animate-fade-in">
+                  <div className="mb-3 text-4xl">✅</div>
+                  <p className="text-green-300 font-medium">Hazirsin!</p>
+                  <p className="text-sm text-gray-500 mt-1">Quiz basladiginda sorular burada gorunecek.</p>
                 </div>
               )}
               {isOwner && (
-                <div className="mt-3">
-                  <p className="mb-2 text-sm text-gray-400">Uyeler hazir oldugunda quiz'i baslat.</p>
-                  <ActionButton onClick={handleStart} loading={loading}>Quiz'i Baslat</ActionButton>
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <ActionButton onClick={handleStart} loading={loading} size="lg" fullWidth>
+                    Quiz'i Baslat ({memCount} katilimci)
+                  </ActionButton>
                 </div>
               )}
             </div>
@@ -240,61 +268,56 @@ export default function QuizLobbyPage() {
         {/* ACTIVE */}
         {phaseIdx === 1 && (
           <div className="space-y-4">
-            {/* Soru goster */}
-            <QuestionDisplay lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={effectiveCid} />
+            {/* Soru + Cevap butonlari tek kartta */}
+            <QuestionDisplay lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={effectiveCid}>
+              {(options) => {
+                if (hasCommitted) {
+                  return (
+                    <div className="text-center py-4 animate-fade-in">
+                      <div className="text-5xl mb-3 animate-check-pop">✅</div>
+                      <p className="text-green-300 font-semibold text-lg">Cevap gonderildi!</p>
+                      <p className="text-sm text-gray-500 mt-2">Siradaki soruyu bekle...</p>
+                    </div>
+                  )
+                }
+
+                if (!isMember || isOwner) return null
+
+                return (
+                  <div className="grid grid-cols-2 gap-3 stagger-children">
+                    {options.map((opt, i) => {
+                      const s = ANSWER_STYLES[i % ANSWER_STYLES.length]
+                      const isSelected = optimisticAnswer === opt
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleAnswerClick(opt)}
+                          disabled={loading || !!optimisticAnswer}
+                          className={`${isSelected ? s.selected : s.bg} ${!optimisticAnswer ? s.hover : ''} rounded-xl px-4 py-5 text-white font-bold text-sm flex items-center gap-3 transition-all duration-200 disabled:cursor-not-allowed ${optimisticAnswer && !isSelected ? 'opacity-40' : ''}`}
+                        >
+                          <span className="text-2xl opacity-80">{s.shape}</span>
+                          <span className="leading-tight text-left">{opt}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              }}
+            </QuestionDisplay>
+
+            {/* Uye degil — izleyici */}
+            {!isMember && !isOwner && (
+              <div className="rounded-xl border border-gray-800/50 bg-gray-900/50 p-5 text-center animate-fade-in">
+                <p className="text-sm text-gray-500">Quiz'i izliyorsun. Katilmak icin bir sonraki quiz'i bekle.</p>
+              </div>
+            )}
 
             {/* Owner: sonraki soruya gec */}
             {isOwner && (
               <WalletGuard>
-                <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-                  <h2 className="mb-2 text-lg font-semibold text-white">
-                    {curQ < qCount ? `Soru ${curQ + 1}'i Ac` : 'Soruyu Bitir'}
-                  </h2>
-                  <p className="mb-3 text-sm text-gray-400">
-                    Butona basinca sıradaki sorunun anahtarı otomatik acilir.
-                  </p>
-                  <ActionButton onClick={handleRevealNextKey} loading={loading}>
-                    {curQ < qCount ? `▶ Soru ${curQ + 1}'e Gec` : '✓ Sorulari Bitir'}
-                  </ActionButton>
-                </div>
-              </WalletGuard>
-            )}
-
-            {/* Participant: Kahoot cevap butonlari */}
-            {isMember && !isOwner && (
-              <WalletGuard>
-                <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-                  {hasCommitted ? (
-                    <div className="text-center py-4">
-                      <div className="text-4xl mb-2">✅</div>
-                      <p className="text-green-300 font-semibold">
-                        Cevabın gönderildi: <span className="font-bold">{savedAnswer}</span>
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">Siradaki soruyu bekle...</p>
-                    </div>
-                  ) : (
-                    <AnswerButtons onAnswer={handleAnswerClick} loading={loading} lobbyAddress={lobby} questionIndex={displayedQ} ipfsCid={effectiveCid} />
-                  )}
-                </div>
-              </WalletGuard>
-            )}
-
-            {!isMember && !isOwner && (
-              <div className="rounded-xl border border-gray-800/50 bg-gray-900/50 p-5 text-center">
-                <p className="text-sm text-gray-500">Bu lobinin uyesi degilsin. Sadece izleyebilirsin.</p>
-              </div>
-            )}
-
-            {/* Slash */}
-            {isMember && (
-              <WalletGuard>
-                <div className="rounded-xl border border-red-800/30 bg-red-900/10 p-5">
-                  <h2 className="mb-2 text-lg font-semibold text-red-300">Stake Talep Et</h2>
-                  <p className="mb-3 text-sm text-gray-400">
-                    Owner anahtar acmadiysa ve sure dolduysa, stake'i katilimcilar arasinda dagit.
-                  </p>
-                  <ActionButton onClick={handleClaimSlash} loading={loading} variant="danger">
-                    Stake'i Talep Et
+                <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 animate-fade-in-up">
+                  <ActionButton onClick={handleRevealNextKey} loading={loading} size="lg" fullWidth>
+                    {curQ < qCount ? `Soru ${curQ + 1}'e Gec ▶` : 'Sorulari Bitir ✓'}
                   </ActionButton>
                 </div>
               </WalletGuard>
@@ -304,25 +327,31 @@ export default function QuizLobbyPage() {
 
         {/* REVEAL */}
         {phaseIdx === 2 && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in-up">
             {isMember && (
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-                <h2 className="mb-3 text-lg font-semibold text-white">Cevaplar Gonderiliyor...</h2>
+              <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+                <h2 className="mb-4 text-lg font-semibold text-white">Cevaplar Gonderiliyor</h2>
                 {revealProgress ? (
-                  <div>
-                    <div className="mb-2 h-3 w-full rounded-full bg-gray-800 overflow-hidden">
+                  <div className="animate-fade-in">
+                    <div className="mb-3 h-3 w-full rounded-full bg-gray-800 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-purple-600 transition-all duration-300"
+                        className="h-full rounded-full bg-purple-600 transition-all duration-500 ease-out animate-progress-fill"
                         style={{ width: `${(revealProgress.done / revealProgress.total) * 100}%` }}
                       />
                     </div>
                     <p className="text-sm text-gray-400">{revealProgress.done} / {revealProgress.total} cevap gonderildi</p>
                     {revealProgress.done === revealProgress.total && (
-                      <p className="mt-2 text-sm text-green-400">✓ Tum cevaplar gonderildi!</p>
+                      <div className="mt-3 flex items-center gap-2 text-green-400 animate-fade-in">
+                        <span className="animate-check-pop">✓</span>
+                        <span className="text-sm font-medium">Tum cevaplar gonderildi!</span>
+                      </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400">Cevaplar otomatik gonderilecek...</p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+                    <p className="text-sm text-gray-400">Cevaplar otomatik gonderilecek...</p>
+                  </div>
                 )}
               </div>
             )}
@@ -338,10 +367,23 @@ export default function QuizLobbyPage() {
 
         {/* FINISHED */}
         {phaseIdx === 3 && (
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-5 text-center">
-            <p className="mb-2 text-lg text-gray-400">Quiz tamamlandi.</p>
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-8 text-center animate-scale-in">
+            <div className="text-5xl mb-4">🏆</div>
+            <p className="text-lg text-white font-semibold mb-2">Quiz Tamamlandi!</p>
             <p className="text-sm text-gray-500">ScoreBoard deploy edildiyse skorlari gorebilirsin.</p>
           </div>
+        )}
+
+        {/* Stake talep — sadece detaylar acikken goster */}
+        {phaseIdx === 1 && isMember && showDetails && (
+          <WalletGuard>
+            <div className="rounded-xl border border-red-800/20 bg-red-900/5 p-4 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">Owner anahtar acmadiysa ve sure dolduysa stake talep et.</p>
+                <ActionButton onClick={handleClaimSlash} loading={loading} variant="danger">Talep Et</ActionButton>
+              </div>
+            </div>
+          </WalletGuard>
         )}
       </div>
 
@@ -350,75 +392,34 @@ export default function QuizLobbyPage() {
   )
 }
 
-// Kahoot tarzı cevap butonlari — IPFS'ten plaintext secenekleri gosterir
-function AnswerButtons({
-  onAnswer, loading, lobbyAddress, questionIndex, ipfsCid
-}: {
-  onAnswer: (opt: string) => void
-  loading: boolean
-  lobbyAddress: Address
-  questionIndex: number
-  ipfsCid: string
-}) {
-  const [options, setOptions] = useState<string[]>([])
-
-  useEffect(() => {
-    if (!ipfsCid) return
-    import('../lib/ipfs').then(({ fetchFromIpfs }) =>
-      fetchFromIpfs(ipfsCid).then((data) => {
-        const q = data.questions.find((q) => q.index === questionIndex)
-        if (q) setOptions(q.options)
-      }).catch(() => {})
-    )
-  }, [ipfsCid, questionIndex])
-
-  if (options.length === 0) {
-    return <div className="text-sm text-gray-500 animate-pulse text-center py-4">Secenekler yukleniyor...</div>
-  }
-
-  return (
-    <div>
-      <p className="mb-3 text-sm text-gray-400 font-medium">Cevabini sec:</p>
-      <div className="grid grid-cols-2 gap-3">
-        {options.map((opt, i) => {
-          const s = ANSWER_STYLES[i % ANSWER_STYLES.length]
-          return (
-            <button
-              key={i}
-              onClick={() => onAnswer(opt)}
-              disabled={loading}
-              className={`${s.bg} rounded-xl px-4 py-5 text-white font-bold text-sm flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-transparent hover:border-white/30`}
-            >
-              <span className="text-xl">{s.shape}</span>
-              <span className="leading-tight">{opt}</span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={`text-sm text-gray-200 ${mono ? 'font-mono break-all' : ''}`}>{value}</p>
+      <p className="text-xs text-gray-600 mb-0.5">{label}</p>
+      <p className={`text-sm text-gray-300 ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>
   )
 }
 
-function ActionButton({ onClick, loading, children, variant = 'primary' }: {
-  onClick: () => void; loading: boolean; children: React.ReactNode; variant?: 'primary' | 'danger'
+function ActionButton({ onClick, loading, children, variant = 'primary', size = 'md', fullWidth = false }: {
+  onClick: () => void; loading: boolean; children: React.ReactNode; variant?: 'primary' | 'danger'; size?: 'md' | 'lg'; fullWidth?: boolean
 }) {
-  const colors = variant === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-purple-600 hover:bg-purple-500'
+  const colors = variant === 'danger'
+    ? 'bg-red-600/80 hover:bg-red-500 text-red-100'
+    : 'bg-purple-600 hover:bg-purple-500 hover:shadow-purple-500/20 hover:shadow-lg text-white'
+  const sizeClass = size === 'lg' ? 'px-6 py-3 text-base' : 'px-4 py-2 text-sm'
   return (
     <button
       onClick={onClick}
       disabled={loading}
-      className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 ${colors}`}
+      className={`rounded-xl font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${colors} ${sizeClass} ${fullWidth ? 'w-full' : ''}`}
     >
-      {loading ? 'Isleniyor...' : children}
+      {loading ? (
+        <span className="flex items-center justify-center gap-2">
+          <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          Isleniyor...
+        </span>
+      ) : children}
     </button>
   )
 }

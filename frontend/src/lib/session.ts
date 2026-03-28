@@ -61,3 +61,12 @@ export function saveCid(lobbyAddr: string, cid: string): void {
 export function loadCid(lobbyAddr: string): string {
   return localStorage.getItem(`quiz-cid-${lobbyAddr.toLowerCase()}`) ?? ''
 }
+
+// Lobi isimleri — adres bazli localStorage
+export function saveLobbyName(lobbyAddr: string, name: string): void {
+  localStorage.setItem(`lobby-name-${lobbyAddr.toLowerCase()}`, name)
+}
+
+export function loadLobbyName(lobbyAddr: string): string {
+  return localStorage.getItem(`lobby-name-${lobbyAddr.toLowerCase()}`) ?? ''
+}
