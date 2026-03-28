@@ -34,12 +34,14 @@ export async function fetchFromIpfs(cidHex: string): Promise<IpfsQuizPayload> {
 }
 
 /**
- * Pinata'ya yukle (API key gerekli)
+ * Pinata'ya yukle (.env'den JWT okur)
  */
 export async function uploadToIpfs(
   payload: IpfsQuizPayload,
-  pinataJwt: string
 ): Promise<string> {
+  const pinataJwt = import.meta.env.VITE_PINATA_JWT
+  if (!pinataJwt) throw new Error('VITE_PINATA_JWT env degiskeni tanimli degil.')
+
   const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
     method: 'POST',
     headers: {

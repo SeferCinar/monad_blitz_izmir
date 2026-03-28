@@ -26,7 +26,6 @@ export default function CreateQuiz() {
   const [questionDuration, setQuestionDuration] = useState('300')
   const [revealWindow, setRevealWindow] = useState('600')
   const [stakeAmount, setStakeAmount] = useState('0.01')
-  const [pinataJwt, setPinataJwt] = useState('')
 
   // Generated
   const [masterKey, setMasterKey] = useState('')
@@ -85,7 +84,6 @@ export default function CreateQuiz() {
     setError('')
     setDeployStatus('')
 
-    if (!pinataJwt.trim()) { setError('Pinata JWT gerekli (IPFS yuklemesi icin).'); return }
 
     try {
       setStep('deploying')
@@ -125,7 +123,7 @@ export default function CreateQuiz() {
         quizId: mKey.slice(0, 18),
         questions: encryptedQuestions,
       }
-      const cid = await uploadToIpfs(ipfsPayload, pinataJwt.trim())
+      const cid = await uploadToIpfs(ipfsPayload)
       const cidBytes32 = cidToBytes32(cid)
 
       // 6. Factory'ye deploy
@@ -247,18 +245,6 @@ export default function CreateQuiz() {
           <Field label="Soru Suresi (saniye)" value={questionDuration} onChange={setQuestionDuration} type="number" help="Her soru icin cevaplama suresi" />
           <Field label="Reveal Penceresi (saniye)" value={revealWindow} onChange={setRevealWindow} type="number" help="Quiz bittikten sonra cevap acma suresi" />
           <Field label="Stake (MON)" value={stakeAmount} onChange={setStakeAmount} help="Quiz'i tamamlamazsan katilimcilara dagitilir" />
-
-          <div>
-            <label className="mb-1 block text-sm text-gray-400">Pinata JWT</label>
-            <input
-              type="password"
-              value={pinataJwt}
-              onChange={(e) => setPinataJwt(e.target.value)}
-              placeholder="eyJ..."
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
-            />
-            <p className="mt-1 text-xs text-gray-600">Sorulari IPFS'e yuklemek icin gerekli.</p>
-          </div>
 
           <div>
             <label className="mb-1 block text-sm text-gray-400">Master Key (opsiyonel)</label>
