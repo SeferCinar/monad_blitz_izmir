@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useReadContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
-import { decryptAesGcm, deriveQuestionKey, hexToKey } from '../lib/crypto'
-import { fetchFromIpfs, type IpfsQuizPayload, type EncryptedQuestion } from '../lib/ipfs'
+import { decryptAesGcm, hexToKey } from '../lib/crypto'
+import { fetchFromIpfs, type IpfsQuizPayload } from '../lib/ipfs'
 import type { Address } from 'viem'
 
 type Props = {
   lobbyAddress: Address
   questionIndex: number
   ipfsCid?: string
-  masterKeyHex?: string
 }
 
 type DecryptedQuestion = {
@@ -17,7 +16,7 @@ type DecryptedQuestion = {
   options: string[]
 }
 
-export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, masterKeyHex }: Props) {
+export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }: Props) {
   const [ipfsData, setIpfsData] = useState<IpfsQuizPayload | null>(null)
   const [decrypted, setDecrypted] = useState<DecryptedQuestion | null>(null)
   const [loading, setLoading] = useState(false)
@@ -48,10 +47,14 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
     const encQ = ipfsData.questions.find((q) => q.index === questionIndex)
     if (!encQ) { setError('Soru bulunamadi'); return }
 
-    decryptQuestion(encQ, revealedKey, questionIndex, masterKeyHex)
-      .then(setDecrypted)
+    const key = hexToKey(revealedKey)
+    decryptAesGcm(encQ.encryptedPayload, encQ.iv, key)
+      .then((text) => {
+        const parsed = JSON.parse(text)
+        setDecrypted({ question: parsed.question, options: parsed.options })
+      })
       .catch((e) => setError(`Sifre cozulemedi: ${e.message}`))
-  }, [ipfsData, revealedKey, questionIndex, masterKeyHex])
+  }, [ipfsData, revealedKey, questionIndex])
 
   if (loading) {
     return <div className="text-sm text-gray-500 animate-pulse">Soru yukleniyor...</div>
@@ -89,28 +92,3 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid, 
   )
 }
 
-async function decryptQuestion(
-  encQ: EncryptedQuestion,
-  revealedKey: string,
-  questionIndex: number,
-  masterKeyHex?: string
-): Promise<DecryptedQuestion> {
-  // revealedKey is the key itself (from contract), try direct decryption
-  const key = hexToKey(revealedKey)
-
-  try {
-    const text = await decryptAesGcm(encQ.encryptedPayload, encQ.iv, key)
-    const parsed = JSON.parse(text)
-    return { question: parsed.question, options: parsed.options }
-  } catch {
-    // revealedKey might be the raw key, try HKDF derivation if masterKey is provided
-    if (masterKeyHex) {
-      const masterKey = hexToKey(masterKeyHex)
-      const derivedKey = await deriveQuestionKey(masterKey, questionIndex)
-      const text = await decryptAesGcm(encQ.encryptedPayload, encQ.iv, derivedKey)
-      const parsed = JSON.parse(text)
-      return { question: parsed.question, options: parsed.options }
-    }
-    throw new Error('Anahtar ile sifre cozulemedi')
-  }
-}

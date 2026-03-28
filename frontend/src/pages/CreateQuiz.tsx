@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther, keccak256, encodePacked, type Address } from 'viem'
@@ -6,6 +6,7 @@ import { LobbyFactoryABI } from '../abi/LobbyFactory'
 import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
 import { generateRandomBytes32, generateQuizKeys, encryptAesGcm } from '../lib/crypto'
 import { uploadToIpfs, cidToBytes32, type IpfsQuizPayload } from '../lib/ipfs'
+import { saveQuizSession } from '../lib/session'
 
 type QuestionInput = {
   question: string
@@ -17,33 +18,34 @@ export default function CreateQuiz() {
   const navigate = useNavigate()
   const [step, setStep] = useState<'questions' | 'config' | 'deploying'>('questions')
 
-  // Questions
   const [questions, setQuestions] = useState<QuestionInput[]>([
     { question: '', options: ['', '', '', ''], correctAnswer: '' },
   ])
-
-  // Config
   const [questionDuration, setQuestionDuration] = useState('300')
   const [revealWindow, setRevealWindow] = useState('600')
   const [stakeAmount, setStakeAmount] = useState('0.01')
-
-  // Generated
-  const [masterKey, setMasterKey] = useState('')
-  const [ipfsCid, setIpfsCid] = useState('')
   const [deployStatus, setDeployStatus] = useState('')
   const [error, setError] = useState('')
+
+  // Deploy sirasinda uretilen verileri ref'te tut
+  const pendingSession = useRef<{ masterKey: string; correctAnswers: string[]; cid: string } | null>(null)
 
   const { writeContract, data: txHash, isPending } = useWriteContract()
   const { isLoading: isConfirming, data: receipt } = useWaitForTransactionReceipt({ hash: txHash })
 
-  if (receipt?.logs?.[0]?.topics?.[1]) {
+  // Tx onaylandiktan sonra localStorage'a kaydet ve navigate et
+  useEffect(() => {
+    if (!receipt?.logs?.[0]?.topics?.[1]) return
+    if (!pendingSession.current) return
     const lobbyAddr = ('0x' + receipt.logs[0].topics[1]!.slice(26)) as Address
-    navigate(`/quiz/${lobbyAddr}?cid=${ipfsCid}`)
-  }
+    const session = pendingSession.current
+    pendingSession.current = null
+    saveQuizSession(lobbyAddr, session)
+    navigate(`/quiz/${lobbyAddr}?cid=${session.cid}`)
+  }, [receipt, navigate])
 
-  const addQuestion = () => {
+  const addQuestion = () =>
     setQuestions([...questions, { question: '', options: ['', '', '', ''], correctAnswer: '' }])
-  }
 
   const removeQuestion = (idx: number) => {
     if (questions.length <= 1) return
@@ -51,8 +53,8 @@ export default function CreateQuiz() {
   }
 
   const updateQuestion = (idx: number, field: keyof QuestionInput, value: string) => {
+    if (field === 'options') return
     const updated = [...questions]
-    if (field === 'options') return // handled separately
     updated[idx] = { ...updated[idx], [field]: value }
     setQuestions(updated)
   }
@@ -85,50 +87,46 @@ export default function CreateQuiz() {
     setError('')
     setDeployStatus('')
 
-
     try {
       setStep('deploying')
 
-      // 1. MasterKey uret
-      const mKey = masterKey || generateRandomBytes32()
-      if (!masterKey) setMasterKey(mKey)
+      // 1. MasterKey otomatik uret — kullaniciya gosterme
+      const masterKey = generateRandomBytes32()
       setDeployStatus('Anahtarlar turetiliyor...')
 
       // 2. HKDF ile soru anahtarlarini turet
-      const keys = await generateQuizKeys(mKey, questions.length)
+      const keys = await generateQuizKeys(masterKey, questions.length)
 
-      // 3. Key commits (keccak256 of each key)
+      // 3. Key commits
       const keyCommits = keys.map((k) => keccak256(encodePacked(['bytes32'], [k.hex])))
 
-      // 4. Sorulari AES-GCM ile sifrele
+      // 4. Sorulari sifrele (correctAnswer IPFS'e gitmiyor, sadece localStorage'da tutulacak)
       setDeployStatus('Sorular sifreleniyor...')
       const encryptedQuestions = await Promise.all(
         questions.map(async (q, i) => {
-          const payload = JSON.stringify({
-            question: q.question,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-          })
+          const payload = JSON.stringify({ question: q.question, options: q.options })
           const encrypted = await encryptAesGcm(payload, keys[i].key)
-          return {
-            index: i,
-            encryptedPayload: encrypted.ciphertext,
-            iv: encrypted.iv,
-          }
+          return { index: i, encryptedPayload: encrypted.ciphertext, iv: encrypted.iv }
         })
       )
 
       // 5. IPFS'e yukle
-      setDeployStatus('IPFS\'e yukleniyor...')
+      setDeployStatus("IPFS'e yukleniyor...")
       const ipfsPayload: IpfsQuizPayload = {
-        quizId: mKey.slice(0, 18),
+        quizId: masterKey.slice(0, 18),
         questions: encryptedQuestions,
       }
       const cid = await uploadToIpfs(ipfsPayload)
-      setIpfsCid(cid)
       const cidBytes32 = cidToBytes32(cid)
 
-      // 6. Factory'ye deploy
+      // 6. Session verisini ref'e kaydet (useEffect tx onayini bekleyecek)
+      pendingSession.current = {
+        masterKey,
+        correctAnswers: questions.map((q) => q.correctAnswer),
+        cid,
+      }
+
+      // 7. Deploy
       setDeployStatus('Kontrat deploy ediliyor...')
       writeContract({
         address: LOBBY_FACTORY_ADDRESS,
@@ -181,16 +179,14 @@ export default function CreateQuiz() {
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-white">Soru {qIdx + 1}</h3>
                 {questions.length > 1 && (
-                  <button
-                    onClick={() => removeQuestion(qIdx)}
-                    className="text-xs text-red-400 hover:text-red-300"
-                  >Sil</button>
+                  <button onClick={() => removeQuestion(qIdx)} className="text-xs text-red-400 hover:text-red-300">
+                    Sil
+                  </button>
                 )}
               </div>
 
               <input
-                type="text"
-                value={q.question}
+                type="text" value={q.question}
                 onChange={(e) => updateQuestion(qIdx, 'question', e.target.value)}
                 placeholder="Soru metni..."
                 className="mb-3 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
@@ -199,9 +195,7 @@ export default function CreateQuiz() {
               <div className="mb-3 grid grid-cols-2 gap-2">
                 {q.options.map((opt, optIdx) => (
                   <input
-                    key={optIdx}
-                    type="text"
-                    value={opt}
+                    key={optIdx} type="text" value={opt}
                     onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
                     placeholder={`Secenek ${String.fromCharCode(65 + optIdx)}`}
                     className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
@@ -248,26 +242,6 @@ export default function CreateQuiz() {
           <Field label="Reveal Penceresi (saniye)" value={revealWindow} onChange={setRevealWindow} type="number" help="Quiz bittikten sonra cevap acma suresi" />
           <Field label="Stake (MON)" value={stakeAmount} onChange={setStakeAmount} help="Quiz'i tamamlamazsan katilimcilara dagitilir" />
 
-          <div>
-            <label className="mb-1 block text-sm text-gray-400">Master Key (opsiyonel)</label>
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={masterKey}
-                onChange={(e) => setMasterKey(e.target.value)}
-                placeholder="Otomatik uretilir"
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm font-mono text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
-              />
-              <button
-                onClick={() => setMasterKey(generateRandomBytes32())}
-                className="rounded-lg bg-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-600"
-              >
-                Uret
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-red-400">Bu anahtari kaydet! Soru anahtarlarini acmak icin gerekli.</p>
-          </div>
-
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setStep('questions')}
@@ -289,16 +263,8 @@ export default function CreateQuiz() {
       {/* Step 3: Deploying */}
       {step === 'deploying' && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center">
-          <div className="mb-4 text-purple-400 animate-pulse text-lg">{deployStatus || 'Isleniyor...'}</div>
-          {masterKey && (
-            <div className="mt-4 rounded-lg bg-yellow-900/20 border border-yellow-800/30 p-4">
-              <p className="mb-2 text-sm text-yellow-300 font-semibold">Master Key'ini kaydet!</p>
-              <code className="block break-all text-xs text-yellow-200 bg-gray-800 rounded px-3 py-2">
-                {masterKey}
-              </code>
-              <p className="mt-2 text-xs text-gray-400">Bu anahtar olmadan soru anahtarlarini turetip acamazsin.</p>
-            </div>
-          )}
+          <div className="mb-4 animate-pulse text-lg text-purple-400">{deployStatus || 'Isleniyor...'}</div>
+          <p className="text-sm text-gray-500">Lutfen bekleyin, islem tamamlaninca otomatik yonlendirileceksiniz.</p>
         </div>
       )}
     </div>
@@ -312,9 +278,7 @@ function Field({ label, value, onChange, type = 'text', help }: {
     <div>
       <label className="mb-1 block text-sm text-gray-400">{label}</label>
       <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        type={type} value={value} onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-purple-500 focus:outline-none"
       />
       {help && <p className="mt-1 text-xs text-gray-600">{help}</p>}

@@ -7,8 +7,9 @@ import { useTxFeedback } from '../hooks/useTxFeedback'
 import WalletGuard from '../components/WalletGuard'
 import TxToast from '../components/TxToast'
 import type { Address } from 'viem'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { keccak256, encodePacked } from 'viem'
+import { loadQuizSession } from '../lib/session'
 
 export default function ScoreBoardPage() {
   const { address: boardAddr } = useParams<{ address: string }>()
@@ -58,7 +59,16 @@ export default function ScoreBoardPage() {
 
   const { writeContract, loading, toast, dismissToast } = useTxFeedback()
 
+  // Dogru cevaplar: once localStorage'dan yukle (owner quiz'i olusturmussa), yoksa manuel girilebilir
   const [correctAnswers, setCorrectAnswers] = useState('')
+
+  useEffect(() => {
+    if (!quizLobby) return
+    const session = loadQuizSession(quizLobby)
+    if (session?.correctAnswers?.length) {
+      setCorrectAnswers(session.correctAnswers.join('\n'))
+    }
+  }, [quizLobby])
 
   const isOwner = userAddr && owner && userAddr.toLowerCase() === (owner as string).toLowerCase()
   const qCount = questionCount !== undefined ? Number(questionCount) : 0
