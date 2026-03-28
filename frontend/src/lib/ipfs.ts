@@ -1,4 +1,4 @@
-import { keccak256, toHex } from 'viem'
+import bs58 from 'bs58'
 
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs/'
 
@@ -21,7 +21,7 @@ export type IpfsQuizPayload = {
 }
 
 /**
- * IPFS'ten quiz payload'unu fetch et (CID string olarak gelir, URL param'dan)
+ * IPFS'ten quiz payload'unu fetch et
  */
 export async function fetchFromIpfs(cid: string): Promise<IpfsQuizPayload> {
   const res = await fetch(`${IPFS_GATEWAY}${cid}`)
@@ -60,9 +60,28 @@ export async function uploadToIpfs(
 }
 
 /**
- * CID'yi keccak256 ile hash'le — on-chain commitment olarak kullanilir.
- * Gercek CID, URL parametresinde tasinir.
+ * CIDv0'dan SHA-256 digest'i cikar ve bytes32 olarak dondur.
+ * CIDv0 = base58(0x1220 + 32-byte-digest), digest tam 32 byte = bytes32'ye sigar.
  */
 export function cidToBytes32(cid: string): `0x${string}` {
-  return keccak256(toHex(cid))
+  const decoded = bs58.decode(cid)
+  // Ilk 2 byte multihash header: 0x12 (sha2-256) + 0x20 (32 byte)
+  const digest = decoded.slice(2)
+  if (digest.length !== 32) throw new Error(`Beklenmeyen digest uzunlugu: ${digest.length}`)
+  return `0x${Array.from(digest).map((b) => b.toString(16).padStart(2, '0')).join('')}`
+}
+
+/**
+ * On-chain bytes32'den CIDv0'i geri olustur.
+ * bytes32 → 0x1220 + digest → base58 encode → "Qm..."
+ */
+export function bytes32ToCid(hex: string): string {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex
+  const digest = Uint8Array.from(clean.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
+  // Multihash header ekle: 0x12 (sha2-256) + 0x20 (32 byte length)
+  const multihash = new Uint8Array(34)
+  multihash[0] = 0x12
+  multihash[1] = 0x20
+  multihash.set(digest, 2)
+  return bs58.encode(multihash)
 }

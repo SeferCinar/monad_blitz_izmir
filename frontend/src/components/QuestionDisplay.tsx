@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useReadContract } from 'wagmi'
 import { QuizLobbyABI } from '../abi/QuizLobby'
 import { decryptAesGcm, hexToKey } from '../lib/crypto'
-import { fetchFromIpfs, type IpfsQuizPayload } from '../lib/ipfs'
+import { fetchFromIpfs, bytes32ToCid, type IpfsQuizPayload } from '../lib/ipfs'
 import type { Address } from 'viem'
 
 type Props = {
   lobbyAddress: Address
   questionIndex: number
-  ipfsCid?: string
+  ipfsCid?: string // URL'den gelen CID (varsa oncelikli)
 }
 
 type DecryptedQuestion = {
@@ -16,11 +16,27 @@ type DecryptedQuestion = {
   options: string[]
 }
 
+const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000'
+
 export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }: Props) {
   const [ipfsData, setIpfsData] = useState<IpfsQuizPayload | null>(null)
   const [decrypted, setDecrypted] = useState<DecryptedQuestion | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // On-chain'den ipfsCID bytes32 oku
+  const { data: ipfsCidBytes32 } = useReadContract({
+    address: lobbyAddress, abi: QuizLobbyABI, functionName: 'ipfsCID',
+  })
+
+  // CID'yi belirle: prop > on-chain bytes32'den reconstruct
+  const resolvedCid = useMemo(() => {
+    if (ipfsCid) return ipfsCid
+    if (ipfsCidBytes32 && ipfsCidBytes32 !== ZERO) {
+      try { return bytes32ToCid(ipfsCidBytes32) } catch { return '' }
+    }
+    return ''
+  }, [ipfsCid, ipfsCidBytes32])
 
   const { data: revealedKey } = useReadContract({
     address: lobbyAddress, abi: QuizLobbyABI, functionName: 'revealedKeys',
@@ -29,24 +45,22 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
 
   // IPFS fetch
   useEffect(() => {
-    if (!ipfsCid) return
+    if (!resolvedCid) return
     setLoading(true)
-    fetchFromIpfs(ipfsCid)
+    fetchFromIpfs(resolvedCid)
       .then(setIpfsData)
       .catch((e) => setError(`IPFS yuklenemedi: ${e.message}`))
       .finally(() => setLoading(false))
-  }, [ipfsCid])
+  }, [resolvedCid])
 
   // Decrypt when key is available
   useEffect(() => {
-    const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000'
     if (!revealedKey || revealedKey === ZERO) {
       setDecrypted(null)
       return
     }
-    // Key var ama IPFS verisi yok — CID eksik
     if (!ipfsData) {
-      if (!ipfsCid) setError('Soru yuklenemedi — quiz baglantisindan gir.')
+      if (!resolvedCid) setError('CID bulunamadi.')
       return
     }
 
@@ -60,7 +74,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
         setDecrypted({ question: parsed.question, options: parsed.options })
       })
       .catch((e) => setError(`Sifre cozulemedi: ${e.message}`))
-  }, [ipfsData, revealedKey, questionIndex, ipfsCid])
+  }, [ipfsData, revealedKey, questionIndex, resolvedCid])
 
   if (loading) {
     return <div className="text-sm text-gray-500 animate-pulse">Soru yukleniyor...</div>
@@ -70,7 +84,7 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
     return <div className="text-sm text-red-400">{error}</div>
   }
 
-  if (!revealedKey || revealedKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+  if (!revealedKey || revealedKey === ZERO) {
     return (
       <div className="rounded-lg bg-gray-800/50 p-4 text-center">
         <p className="text-sm text-gray-500">Soru {questionIndex}: Anahtar henuz acilmadi.</p>
@@ -79,13 +93,6 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
   }
 
   if (!decrypted) {
-    if (!ipfsCid) {
-      return (
-        <div className="rounded-lg bg-gray-800/50 p-4 text-center">
-          <p className="text-sm text-red-400">Soru yuklenemedi — quiz olusturucusunun paylasdigi baglantiyi kullan.</p>
-        </div>
-      )
-    }
     return <div className="text-sm text-gray-500 animate-pulse">Sifre cozuluyor...</div>
   }
 
@@ -104,4 +111,3 @@ export default function QuestionDisplay({ lobbyAddress, questionIndex, ipfsCid }
     </div>
   )
 }
-
