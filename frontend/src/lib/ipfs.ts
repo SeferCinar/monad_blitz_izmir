@@ -9,15 +9,15 @@ export type QuizQuestion = {
   correctAnswer: string
 }
 
-export type EncryptedQuestion = {
+export type PlaintextQuestion = {
   index: number
-  encryptedPayload: string
-  iv: string
+  question: string
+  options: string[]
 }
 
 export type IpfsQuizPayload = {
   quizId: string
-  questions: EncryptedQuestion[]
+  questions: PlaintextQuestion[]
 }
 
 /**

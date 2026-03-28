@@ -350,7 +350,7 @@ export default function QuizLobbyPage() {
   )
 }
 
-// Kahoot tarzı cevap butonlari — soruyu bekler, secenekleri gosterir
+// Kahoot tarzı cevap butonlari — IPFS'ten plaintext secenekleri gosterir
 function AnswerButtons({
   onAnswer, loading, lobbyAddress, questionIndex, ipfsCid
 }: {
@@ -361,39 +361,16 @@ function AnswerButtons({
   ipfsCid: string
 }) {
   const [options, setOptions] = useState<string[]>([])
-  const { data: revealedKey } = useReadContract({
-    address: lobbyAddress, abi: QuizLobbyABI, functionName: 'revealedKeys',
-    args: [BigInt(questionIndex)],
-  })
 
-  // IPFS'ten secenekleri al (sifre cozulunce)
   useEffect(() => {
-    const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000'
-    if (!revealedKey || revealedKey === ZERO || !ipfsCid) return
+    if (!ipfsCid) return
     import('../lib/ipfs').then(({ fetchFromIpfs }) =>
       fetchFromIpfs(ipfsCid).then((data) => {
         const q = data.questions.find((q) => q.index === questionIndex)
-        if (!q) return
-        import('../lib/crypto').then(({ hexToKey, decryptAesGcm }) => {
-          const key = hexToKey(revealedKey)
-          decryptAesGcm(q.encryptedPayload, q.iv, key).then((text) => {
-            const parsed = JSON.parse(text)
-            setOptions(parsed.options ?? [])
-          }).catch(() => {})
-        })
+        if (q) setOptions(q.options)
       }).catch(() => {})
     )
-  }, [revealedKey, ipfsCid, questionIndex])
-
-  const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000'
-  if (!revealedKey || revealedKey === ZERO) {
-    return (
-      <div className="text-center py-6">
-        <div className="text-3xl mb-2 animate-pulse">⏳</div>
-        <p className="text-gray-500 text-sm">Soru acılmasını bekle...</p>
-      </div>
-    )
-  }
+  }, [ipfsCid, questionIndex])
 
   if (options.length === 0) {
     return <div className="text-sm text-gray-500 animate-pulse text-center py-4">Secenekler yukleniyor...</div>
@@ -401,7 +378,7 @@ function AnswerButtons({
 
   return (
     <div>
-      <p className="mb-3 text-sm text-gray-400 font-medium">Cevabını seç:</p>
+      <p className="mb-3 text-sm text-gray-400 font-medium">Cevabini sec:</p>
       <div className="grid grid-cols-2 gap-3">
         {options.map((opt, i) => {
           const s = ANSWER_STYLES[i % ANSWER_STYLES.length]

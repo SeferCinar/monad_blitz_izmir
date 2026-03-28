@@ -4,7 +4,7 @@ import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseEther, keccak256, encodePacked, type Address } from 'viem'
 import { LobbyFactoryABI } from '../abi/LobbyFactory'
 import { LOBBY_FACTORY_ADDRESS } from '../config/contracts'
-import { generateRandomBytes32, generateQuizKeys, encryptAesGcm } from '../lib/crypto'
+import { generateRandomBytes32, generateQuizKeys } from '../lib/crypto'
 import { uploadToIpfs, cidToBytes32, type IpfsQuizPayload } from '../lib/ipfs'
 import { saveQuizSession } from '../lib/session'
 
@@ -100,21 +100,15 @@ export default function CreateQuiz() {
       // 3. Key commits
       const keyCommits = keys.map((k) => keccak256(encodePacked(['bytes32'], [k.hex])))
 
-      // 4. Sorulari sifrele (correctAnswer IPFS'e gitmiyor, sadece localStorage'da tutulacak)
-      setDeployStatus('Sorular sifreleniyor...')
-      const encryptedQuestions = await Promise.all(
-        questions.map(async (q, i) => {
-          const payload = JSON.stringify({ question: q.question, options: q.options })
-          const encrypted = await encryptAesGcm(payload, keys[i].key)
-          return { index: i, encryptedPayload: encrypted.ciphertext, iv: encrypted.iv }
-        })
-      )
-
-      // 5. IPFS'e yukle
+      // 4. Sorulari plaintext IPFS'e yukle (sifreleme yok — hackathon demo icin)
       setDeployStatus("IPFS'e yukleniyor...")
       const ipfsPayload: IpfsQuizPayload = {
         quizId: masterKey.slice(0, 18),
-        questions: encryptedQuestions,
+        questions: questions.map((q, i) => ({
+          index: i,
+          question: q.question,
+          options: q.options,
+        })),
       }
       const cid = await uploadToIpfs(ipfsPayload)
       const cidBytes32 = cidToBytes32(cid)
