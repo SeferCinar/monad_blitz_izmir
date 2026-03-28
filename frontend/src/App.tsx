@@ -6,6 +6,7 @@ import VoteLobbyPage from './pages/VoteLobbyPage'
 import CreateQuiz from './pages/CreateQuiz'
 import CreateVote from './pages/CreateVote'
 import MyLobbies from './pages/MyLobbies'
+import ScoreBoardPage from './pages/ScoreBoardPage'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/vote/:address" element={<VoteLobbyPage />} />
         <Route path="/create/quiz" element={<CreateQuiz />} />
         <Route path="/create/vote" element={<CreateVote />} />
+        <Route path="/scoreboard/:address" element={<ScoreBoardPage />} />
       </Route>
     </Routes>
   )
